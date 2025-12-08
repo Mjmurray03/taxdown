@@ -6,12 +6,15 @@ This module provides pytest fixtures for:
 - Comparable properties
 - Database connections (mocked and real)
 - Service instances
+- API test environment setup
 """
 
 import pytest
 from unittest.mock import Mock, MagicMock, patch
 from typing import List, Dict, Any
 from datetime import datetime
+import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
@@ -23,6 +26,22 @@ from src.services import (
     SavingsEstimator,
     AssessmentAnalyzer,
 )
+
+
+# ============================================================================
+# TEST ENVIRONMENT SETUP
+# ============================================================================
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_env():
+    """Set up test environment variables."""
+    os.environ.setdefault(
+        "TAXDOWN_DATABASE_URL",
+        os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/taxdown")
+    )
+    os.environ["TAXDOWN_DEBUG"] = "true"
+    os.environ["TAXDOWN_REQUIRE_API_KEY"] = "false"
+    yield
 
 
 # ============================================================================

@@ -25,6 +25,29 @@ from .assessment_analyzer import (
     AssessmentAnalyzer,
     AssessmentAnalysis,
 )
+from .appeal_models import (
+    GeneratorConfig,
+    AppealPackage,
+    AppealStatus,
+    TemplateStyle,
+    GeneratorType,
+    ComparablePropertySummary,
+    BatchAppealResult,
+)
+from .appeal_generator import AppealGenerator
+from .pdf_generator import PDFGenerator, PDFGenerationError
+from .portfolio_service import (
+    PortfolioService,
+    BulkAnalysisService,
+    PortfolioAnalytics,
+    User,
+    Portfolio,
+    PortfolioProperty,
+    PortfolioSummary,
+    DashboardData,
+    AnalysisResult,
+    AppealCandidate,
+)
 
 __all__ = [
     "ComparableService",
@@ -39,4 +62,24 @@ __all__ = [
     "SavingsEstimate",
     "AssessmentAnalyzer",
     "AssessmentAnalysis",
+    "GeneratorConfig",
+    "AppealPackage",
+    "AppealStatus",
+    "TemplateStyle",
+    "GeneratorType",
+    "ComparablePropertySummary",
+    "BatchAppealResult",
+    "AppealGenerator",
+    "PDFGenerator",
+    "PDFGenerationError",
+    "PortfolioService",
+    "BulkAnalysisService",
+    "PortfolioAnalytics",
+    "User",
+    "Portfolio",
+    "PortfolioProperty",
+    "PortfolioSummary",
+    "DashboardData",
+    "AnalysisResult",
+    "AppealCandidate",
 ]
