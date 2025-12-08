@@ -3,36 +3,86 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import time
-import logging
 
 from src.api.config import get_settings
 from src.api.dependencies import get_engine
 from src.api.middleware import (
     RateLimitMiddleware,
     RequestIDMiddleware,
-    register_exception_handlers
+    register_exception_handlers,
+    AuditMiddleware,
+    SecureHeadersMiddleware,
 )
+from src.api.security import SensitiveDataFilter
+from src.api.monitoring import (
+    init_sentry,
+    configure_logging,
+    get_logger,
+    MetricsMiddleware,
+    REQUEST_COUNT,
+    REQUEST_LATENCY,
+    record_error,
+    capture_exception,
+)
+from src.api.routes.health import set_startup_time
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Configure structured logging
+settings = get_settings()
+configure_logging(
+    log_level=settings.log_level,
+    json_logs=settings.log_json and not settings.debug,
+    add_caller_info=settings.debug
+)
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
     # Startup
-    logger.info("Starting Taxdown API...")
     settings = get_settings()
+
+    # Initialize Sentry if configured
+    if settings.sentry_dsn:
+        sentry_initialized = init_sentry(
+            dsn=settings.sentry_dsn,
+            environment=settings.environment,
+            debug=settings.debug
+        )
+        if sentry_initialized:
+            logger.info("Sentry error tracking initialized",
+                       environment=settings.environment)
+        else:
+            logger.warning("Failed to initialize Sentry")
+
+    logger.info("Starting Taxdown API...",
+               version=settings.app_version,
+               environment=settings.environment,
+               debug=settings.debug)
+
     engine = get_engine()
     logger.info("Connected to database")
-    logger.info(f"API version: {settings.app_version}")
+
+    # Initialize Redis cache if configured
+    if settings.cache_enabled and settings.redis_url:
+        from src.api.cache import init_cache
+        cache = init_cache(settings.redis_url)
+        if cache.enabled:
+            logger.info("Redis cache initialized", redis_url=settings.redis_url[:20] + "...")
+        else:
+            logger.warning("Redis cache initialization failed, caching disabled")
+    else:
+        logger.info("Caching disabled (no redis_url configured)")
+
+    # Set startup time for uptime tracking
+    set_startup_time()
 
     yield
 
     # Shutdown
     logger.info("Shutting down Taxdown API...")
     engine.dispose()
+    logger.info("Database connections closed")
 
 
 def create_app() -> FastAPI:
@@ -75,29 +125,72 @@ def create_app() -> FastAPI:
     # Request ID middleware
     app.add_middleware(RequestIDMiddleware)
 
+    # Prometheus metrics middleware (must be added before other middleware)
+    app.add_middleware(MetricsMiddleware)
+
+    # Security middleware - Secure Headers
+    if settings.enable_secure_headers:
+        # Disable HSTS in development (no HTTPS)
+        include_hsts = settings.enable_hsts and not settings.is_development
+        app.add_middleware(
+            SecureHeadersMiddleware,
+            include_hsts=include_hsts,
+            exclude_paths=["/docs", "/redoc", "/openapi.json"],
+        )
+        logger.info("Secure headers middleware enabled", hsts=include_hsts)
+
+    # Security middleware - Audit Logging
+    if settings.enable_audit_logging:
+        app.add_middleware(
+            AuditMiddleware,
+            log_reads=settings.audit_log_reads,
+            exclude_paths=["/health", "/ready", "/metrics", "/docs", "/redoc"],
+        )
+        logger.info("Audit logging middleware enabled", log_reads=settings.audit_log_reads)
+
     # Register exception handlers
     register_exception_handlers(app)
 
-    # Request logging middleware
+    # Request logging middleware with structured logging
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
         start_time = time.time()
-        response = await call_next(request)
-        duration = time.time() - start_time
 
-        # Include request ID in logs if available
+        # Get request ID if available
         request_id = getattr(request.state, "request_id", "unknown")
-        logger.info(
-            f"[{request_id[:8]}] {request.method} {request.url.path} "
-            f"- {response.status_code} - {duration:.3f}s"
-        )
-        return response
 
-    # Health check endpoint
-    @app.get("/health", tags=["System"])
-    async def health_check():
-        """Health check endpoint"""
-        return {"status": "healthy", "version": settings.app_version}
+        try:
+            response = await call_next(request)
+            duration = time.time() - start_time
+
+            # Structured log with context
+            logger.info(
+                "Request completed",
+                request_id=request_id[:8] if request_id != "unknown" else request_id,
+                method=request.method,
+                path=request.url.path,
+                status_code=response.status_code,
+                duration_ms=round(duration * 1000, 2),
+                client_ip=request.client.host if request.client else None,
+            )
+            return response
+
+        except Exception as e:
+            duration = time.time() - start_time
+            logger.error(
+                "Request failed",
+                request_id=request_id[:8] if request_id != "unknown" else request_id,
+                method=request.method,
+                path=request.url.path,
+                duration_ms=round(duration * 1000, 2),
+                error=str(e),
+                exc_info=True,
+            )
+            # Record error metric
+            record_error(type(e).__name__, request.url.path)
+            # Capture in Sentry
+            capture_exception(e, request_id=request_id, path=request.url.path)
+            raise
 
     # Root endpoint
     @app.get("/", tags=["System"])
@@ -110,7 +203,8 @@ def create_app() -> FastAPI:
         }
 
     # Import and include routers
-    from src.api.routes import properties, analysis, appeals, reports, portfolios
+    from src.api.routes import properties, analysis, appeals, reports, portfolios, health
+    app.include_router(health.router)  # Health endpoints at root level
     app.include_router(properties.router, prefix="/api/v1")
     app.include_router(analysis.router, prefix="/api/v1")
     app.include_router(appeals.router, prefix="/api/v1")

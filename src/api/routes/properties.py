@@ -7,6 +7,7 @@ Endpoints for searching and retrieving property information.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from sqlalchemy import text
+import logging
 
 from src.api.dependencies import (
     get_engine,
@@ -21,8 +22,10 @@ from src.api.schemas.property import (
     AddressSuggestion
 )
 from src.api.schemas.common import APIResponse, cents_to_dollars
+from src.api.cache import get_cache_manager, CacheTTL, cache_key
 from src.services import AssessmentAnalyzer
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/properties", tags=["Properties"])
 
 
@@ -38,6 +41,14 @@ async def get_property(
     - **property_id**: Property UUID or parcel ID
     - **include_analysis**: Whether to include fairness analysis
     """
+    # Check cache first
+    cache = get_cache_manager()
+    cache_k = f"taxdown:property_detail:{cache_key(property_id, include_analysis)}"
+    cached_data = cache.get(cache_k)
+    if cached_data is not None:
+        logger.debug(f"Cache hit for property {property_id}")
+        return APIResponse(data=PropertyDetail(**cached_data))
+
     engine = get_engine()
 
     with engine.connect() as conn:
@@ -96,6 +107,9 @@ async def get_property(
         if property_data.assessed_value:
             property_data.estimated_annual_tax = (property_data.assessed_value * 65.0) / 1000
 
+        # Cache the result
+        cache.set(cache_k, property_data.model_dump(), CacheTTL.PROPERTY_DETAIL)
+
         return APIResponse(data=property_data)
 
 
@@ -114,6 +128,14 @@ async def search_properties(
     - City/subdivision filters
     - Fairness score filters
     """
+    # Check cache for search results
+    cache = get_cache_manager()
+    search_cache_key = f"taxdown:search:{cache_key(request.model_dump())}"
+    cached_result = cache.get(search_cache_key)
+    if cached_result is not None:
+        logger.debug("Cache hit for search query")
+        return PropertySearchResponse(**cached_result)
+
     engine = get_engine()
 
     # Build dynamic query
@@ -223,7 +245,7 @@ async def search_properties(
 
     total_pages = (total_count + request.page_size - 1) // request.page_size
 
-    return PropertySearchResponse(
+    response = PropertySearchResponse(
         properties=properties,
         total_count=total_count,
         page=request.page,
@@ -231,6 +253,11 @@ async def search_properties(
         total_pages=total_pages,
         has_more=request.page < total_pages
     )
+
+    # Cache search results
+    cache.set(search_cache_key, response.model_dump(), CacheTTL.SEARCH_RESULTS)
+
+    return response
 
 
 @router.get("/autocomplete/address", response_model=List[AddressSuggestion])
@@ -244,6 +271,14 @@ async def autocomplete_address(
 
     Returns top matches with relevance scores.
     """
+    # Check cache for autocomplete results
+    cache = get_cache_manager()
+    autocomplete_cache_key = f"taxdown:autocomplete:{cache_key(q.lower(), limit)}"
+    cached_suggestions = cache.get(autocomplete_cache_key)
+    if cached_suggestions is not None:
+        logger.debug(f"Cache hit for autocomplete: {q}")
+        return [AddressSuggestion(**s) for s in cached_suggestions]
+
     engine = get_engine()
 
     with engine.connect() as conn:
@@ -273,6 +308,13 @@ async def autocomplete_address(
                 city=row["city"],
                 match_score=float(row["match_score"]) if row["match_score"] else 0.5
             ))
+
+        # Cache autocomplete results
+        cache.set(
+            autocomplete_cache_key,
+            [s.model_dump() for s in suggestions],
+            CacheTTL.AUTOCOMPLETE
+        )
 
         return suggestions
 

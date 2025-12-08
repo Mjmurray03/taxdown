@@ -7,6 +7,7 @@ Endpoints for property assessment fairness analysis.
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from typing import Optional, List
 import time
+import logging
 
 from src.api.dependencies import (
     get_engine,
@@ -22,9 +23,11 @@ from src.api.schemas.analysis import (
     RecommendedAction
 )
 from src.api.schemas.common import APIResponse, cents_to_dollars
+from src.api.cache import get_cache_manager, CacheTTL, cache_key
 from src.services import AssessmentAnalyzer
 from src.api.config import get_settings
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
 
 
@@ -44,6 +47,8 @@ async def analyze_property(
     - Estimated savings if appeal successful
     - Comparable properties used in analysis
     """
+    cache = get_cache_manager()
+
     # Resolve property ID
     property_id = request.property_id
     if not property_id and request.parcel_id:
@@ -55,9 +60,18 @@ async def analyze_property(
             detail="Either property_id or parcel_id must be provided"
         )
 
+    # Check cache if not forcing reanalysis
+    analysis_id = request.parcel_id if request.parcel_id else property_id
+    analysis_cache_key = f"taxdown:analysis:{cache_key(analysis_id, request.mill_rate)}"
+
+    if not request.force_reanalyze:
+        cached_result = cache.get(analysis_cache_key)
+        if cached_result is not None:
+            logger.debug(f"Cache hit for analysis: {analysis_id}")
+            return APIResponse(data=AssessmentAnalysisResult(**cached_result))
+
     try:
-        # Run analysis - use parcel_id if that's what we have
-        analysis_id = request.parcel_id if request.parcel_id else property_id
+        # Run analysis
         analysis = analyzer.analyze_property(property_id=analysis_id)
 
         if not analysis:
@@ -87,6 +101,12 @@ async def analyze_property(
             analysis_date=analysis.analysis_date,
             mill_rate_used=request.mill_rate
         )
+
+        # Cache the analysis result
+        cache.set(analysis_cache_key, result.model_dump(), CacheTTL.ANALYSIS_RESULTS)
+
+        # Invalidate related property cache since analysis data changed
+        cache.invalidate_property(str(analysis.property_id))
 
         return APIResponse(data=result)
 

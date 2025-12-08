@@ -6,3 +6,11 @@ python-dotenv==1.0.0
 shapely==2.0.2
 SQLAlchemy==2.0.23
 email-validator>=2.0.0
+
+# Monitoring and Observability
+sentry-sdk[fastapi]>=1.38.0
+prometheus-client>=0.19.0
+structlog>=23.2.0
+
+# Optional: Redis for caching
+redis>=5.0.0
