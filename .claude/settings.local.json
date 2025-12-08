@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"C:\\taxdown\\data\\raw\")",
+      "Bash(dir:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(mkdir:*)",
+      "Bash(findstr:*)",
+      "Bash(python src/etl/building_enrichment.py:*)",
+      "Bash(python:*)",
+      "Bash(grep:*)",
+      "Bash(railway:*)",
+      "Bash(pip show:*)",
+      "Bash(nslookup:*)",
+      "Bash(npm install:*)",
+      "Bash(wait)",
+      "Bash(timeout 5 python:*)",
+      "Bash(timeout 300 python:*)",
+      "Bash(tee:*)",
+      "Bash(pkill:*)",
+      "Bash(taskkill /F /FI \"WINDOWTITLE eq python*\")",
+      "Bash(timeout 10 python:*)",
+      "Bash(timeout 240 python:*)",
+      "Bash(psql:*)",
+      "Bash(test:*)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

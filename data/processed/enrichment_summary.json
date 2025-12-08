@@ -1,0 +1,11 @@
+{
+  "total_parcels": 173743,
+  "parcels_with_buildings": 94555,
+  "parcels_without_buildings": 79188,
+  "total_buildings_matched": 131975,
+  "avg_buildings_per_parcel": 1.3957485061604358,
+  "max_buildings_per_parcel": 53,
+  "total_building_sqft_county": 428618970,
+  "avg_building_sqft_per_parcel": 4533.012215112897,
+  "correlation_imp_val_sqft": 0.4881404731695713
+}

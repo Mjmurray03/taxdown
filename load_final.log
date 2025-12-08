@@ -1,0 +1,86 @@
+================================================================================
+TAXDOWN - LOAD PROPERTIES DATA
+================================================================================
+Started at: 2025-12-08 01:30:44
+
+Database: mainline.proxy.rlwy.net:53382/railway
+Parquet file: C:\taxdown\data\processed\parcels_enriched.parquet
+
+Creating database connection...
+Connected to PostgreSQL: PostgreSQL 16.9 (Debian 16.9-1.pgdg110+1) on x86_64-pc-linux-gnu
+
+Truncating properties table to start fresh...
+Table truncated successfully
+
+Loading data from C:\taxdown\data\processed\parcels_enriched.parquet...
+Reading parquet file (this may take a moment)...
+Parquet file read completed
+Loaded 173,743 records in 0.49 seconds
+Null PARCELID count: 598
+Building count > 0: 94555
+Transforming geometry from EPSG:3433 to EPSG:4326...
+Geometry transformation completed in 1.23 seconds
+Checking for duplicate PARCELID values...
+Found 2,099 records with duplicate PARCELID values
+Top duplicate IDs: {'18-99999-999': 458, '15-99999-999': 264, 'DG': 231, '02-99999-999': 171, '01-99999-999': 137}
+Generating synthetic parcel IDs...
+  - Null PARCELID: 598
+  - Duplicate PARCELID: 2,099
+  - Total needing synthetic ID: 2,697
+Generating synthetic IDs (vectorized)...
+Generated 2,697 synthetic IDs
+Converting monetary values to cents...
+Mapping columns to database schema...
+Converting geometry to WKT...
+Data transformation completed. Ready to insert 173,743 records
+
+Starting batch insertion...
+Total records: 173,743
+Batch size: 5,000
+Total batches: 35
+--------------------------------------------------------------------------------
+Progress: 10,000/173,743 (5.8%) | Rate: 1357 records/sec | Elapsed: 7.4s
+Progress: 20,000/173,743 (11.5%) | Rate: 1086 records/sec | Elapsed: 18.4s
+Progress: 30,000/173,743 (17.3%) | Rate: 1144 records/sec | Elapsed: 26.2s
+Progress: 40,000/173,743 (23.0%) | Rate: 1229 records/sec | Elapsed: 32.5s
+Progress: 50,000/173,743 (28.8%) | Rate: 1212 records/sec | Elapsed: 41.2s
+Progress: 60,000/173,743 (34.5%) | Rate: 1217 records/sec | Elapsed: 49.3s
+Progress: 70,000/173,743 (40.3%) | Rate: 1198 records/sec | Elapsed: 58.4s
+Progress: 80,000/173,743 (46.0%) | Rate: 1224 records/sec | Elapsed: 65.4s
+Progress: 90,000/173,743 (51.8%) | Rate: 1233 records/sec | Elapsed: 73.0s
+Progress: 100,000/173,743 (57.6%) | Rate: 1239 records/sec | Elapsed: 80.7s
+Progress: 110,000/173,743 (63.3%) | Rate: 1205 records/sec | Elapsed: 91.3s
+Progress: 120,000/173,743 (69.1%) | Rate: 1193 records/sec | Elapsed: 100.6s
+Progress: 130,000/173,743 (74.8%) | Rate: 1185 records/sec | Elapsed: 109.7s
+Progress: 140,000/173,743 (80.6%) | Rate: 1175 records/sec | Elapsed: 119.1s
+Progress: 150,000/173,743 (86.3%) | Rate: 1157 records/sec | Elapsed: 129.6s
+Progress: 160,000/173,743 (92.1%) | Rate: 1173 records/sec | Elapsed: 136.4s
+Progress: 170,000/173,743 (97.8%) | Rate: 1186 records/sec | Elapsed: 143.3s
+Progress: 173,743/173,743 (100.0%) | Rate: 1191 records/sec | Elapsed: 145.9s
+--------------------------------------------------------------------------------
+Successfully inserted 173,743 records
+
+================================================================================
+VERIFICATION QUERIES
+================================================================================
+Total records in properties table: 173,743
+Records with NULL parcel_id: 2,697
+Records with synthetic parcel_id (SYNTH-*): 2,697
+Records with building_sqft > 0: 94,555
+
+Sample records with synthetic IDs:
+  SYNTH-3978AF87A19C | None | $0.00
+  SYNTH-0D8BE7BE0BDF | None | $0.00
+  SYNTH-5AA8BA3D2855 | None | $0.00
+  SYNTH-0F7E091F5D5C | None | $0.00
+  SYNTH-00D546FF69E7 | None | $0.00
+
+Value statistics:
+  Count: 161,278
+  Min value: $5.00
+  Avg value: $336,915.37
+  Max value: $122,443,870.00
+================================================================================
+
+Completed at: 2025-12-08 01:33:16
+================================================================================

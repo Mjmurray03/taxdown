@@ -1,0 +1,12 @@
+================================================================================
+TAXDOWN - LOAD PROPERTIES DATA
+================================================================================
+Started at: 2025-12-08 01:16:20
+
+Database: mainline.proxy.rlwy.net:53382/railway
+Parquet file: C:\taxdown\data\processed\parcels_enriched.parquet
+
+Creating database connection...
+Connected to PostgreSQL: PostgreSQL 16.9 (Debian 16.9-1.pgdg110+1) on x86_64-pc-linux-gnu
+
+Checking existing data...

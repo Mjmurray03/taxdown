@@ -1,0 +1,61 @@
+ properties_count 
+------------------
+           173743
+(1 row)
+
+ subdivisions_count 
+--------------------
+               4041
+(1 row)
+
+ properties_with_building 
+--------------------------
+                    94555
+(1 row)
+
+ null_parcel_id_count 
+----------------------
+                 2697
+(1 row)
+
+ properties_with_assessment 
+----------------------------
+                     161278
+(1 row)
+
+ properties_with_geometry 
+--------------------------
+                   173743
+(1 row)
+
+ min_total_val_cents | max_total_val_cents | avg_total_val_cents | median_total_val_cents 
+---------------------+---------------------+---------------------+------------------------
+                 500 |         12244387000 |            33691537 |               26021000
+(1 row)
+
+ is_valid | count  
+----------+--------
+ f        |     66
+ t        | 173677
+(2 rows)
+
+ srid | count  
+------+--------
+ 4326 | 173743
+(1 row)
+
+ nearby_properties 
+-------------------
+               488
+(1 row)
+
+ properties_within_subdivisions 
+--------------------------------
+                          96109
+(1 row)
+
+  parcel_id   | total_val_cents | assess_val_cents | acre_area | type_ |           subdivname           | property_address 
+--------------+-----------------+------------------+-----------+-------+--------------------------------+------------------
+ 02-09531-001 |        31982500 |          6396500 |      1.13 | RI    | ALTON'S BRUSH CREEK HLS-ROGERS | 105 N KEMPER PL
+(1 row)
+

@@ -1,0 +1,173 @@
+Border style is 2.
+Output format is wrapped.
+
+=========================================
+VALIDATION 1: ROW COUNTS
+=========================================
+
++-----------------------------------+--------+----------+
+|              metric               | value  | expected |
++-----------------------------------+--------+----------+
+| Subdivisions Count                |   4041 |     4041 |
+| Properties Count                  | 173743 |   173743 |
+| Properties with building_sqft > 0 |  94555 |    94555 |
++-----------------------------------+--------+----------+
+(3 rows)
+
+
+=========================================
+VALIDATION 2: DATA QUALITY
+=========================================
+
++--------------------------------------+--------+
+|                metric                | value  |
++--------------------------------------+--------+
+| NULL parcel_id records               | 2697   |
+| Properties with assess_val_cents > 0 | 161278 |
+| Properties with geometry NOT NULL    | 173743 |
++--------------------------------------+--------+
+(3 rows)
+
+
+Value Statistics (total_val_cents):
++-----------+-------------+-----------+--------------+
+| min_value |  max_value  | avg_value | median_value |
++-----------+-------------+-----------+--------------+
+|       500 | 12244387000 |  33691537 |     26021000 |
++-----------+-------------+-----------+--------------+
+(1 row)
+
+
+=========================================
+VALIDATION 3: SPATIAL VALIDATION
+=========================================
+
+Geometry validity check:
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.185987046942003 36.37695996284743
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.208899141880863 36.364168922122168
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.215890735342015 36.398795756889328
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.226125442478107 36.371729145784926
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.21165477612729 36.357072668717052
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.217604195409209 36.388039418841998
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.171135561173571 36.3138107751316
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.126264255381912 36.316230827098735
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.107335419929186 36.323807870865629
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.10652468477474 36.331267942454623
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.113786808321024 36.34445300912067
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.533310956516999 36.19079257717376
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.544649396257881 36.181403457622807
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.27553248594684 36.358216973081134
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.298158609850759 36.365940223257731
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.287150851634593 36.362074325621286
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -93.972683042382002 36.447595093565241
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.335611174018609 36.430231732985931
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.548759925494451 36.125843229446609
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.547953914464458 36.126907991894136
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.359066251375808 36.16810006631956
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.064059399281788 36.286425201889578
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -93.903965520293042 36.413216803090037
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.076925218936054 36.294452132943569
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.000806352677202 36.336194020739718
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.227062401656951 36.435694709705452
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.55049041684947 36.13199392241485
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.32835121724456 36.439045761372938
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.313703333612281 36.492325153710937
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.310705185302638 36.483040040042887
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.260602892521163 36.481625957468708
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.258845976413753 36.482392531441121
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.248549447374643 36.458985104077904
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.263373102433548 36.480919613338138
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.251552252890932 36.458820876824333
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.194905964236909 36.45466516535685
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.252137392752715 36.452345353113294
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.194563041692462 36.457258773255539
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.280654852760819 36.458311255148026
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.258764398493668 36.47963999099062
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.248015878034749 36.479824237117491
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.262874142497324 36.472836103958095
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.258670665970712 36.478164655070834
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.292112004903288 36.458718942817065
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.254243554796957 36.475179526341819
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.2420726502299 36.470215897283715
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.227029579763084 36.425970541216486
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.287161471241362 36.432767841681759
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.277089733134403 36.481849179826348
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -93.922392787092278 36.338875238889841
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -93.994127819262104 36.232129366907621
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -93.96100462768112 36.315838365516868
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.093947717547707 36.250045687588226
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.036803358857256 36.437806897461783
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.111303268956348 36.405150365961674
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.091774601295711 36.358165122174348
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.057660796384056 36.486172951765468
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.375525800143379 36.175488713259867
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.398235674751803 36.192802300139832
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.504106969353074 36.474148536514925
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.02823040883284 36.287958538190793
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.579025718969874 36.294723224097439
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.234494881740176 36.234428174955447
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.16459230453026 36.219088233405621
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -94.316616370897165 36.257239426372593
+psql:C:/taxdown/validation_queries_v2.sql:62: NOTICE:  Ring Self-intersection at or near point -93.927987103242316 36.488290940470023
++----------+--------+
+| validity | count  |
++----------+--------+
+| INVALID  |     66 |
+| VALID    | 173677 |
++----------+--------+
+(2 rows)
+
+
+Geometry SRID check:
++------+--------+
+| srid | count  |
++------+--------+
+| 4326 | 173743 |
++------+--------+
+(1 row)
+
+
+Spatial query test:
++-------------------------+
+| nearby_properties_count |
++-------------------------+
+|                     488 |
++-------------------------+
+(1 row)
+
+
+=========================================
+VALIDATION 4: RELATIONSHIP TEST
+=========================================
+
++--------------------------------+
+| properties_within_subdivisions |
++--------------------------------+
+|                          96109 |
++--------------------------------+
+(1 row)
+
+
+=========================================
+VALIDATION 5: ASSESSMENT RATIO
+=========================================
+
++----------------------+---------------+-------------+
+| avg_assessment_ratio | avg_ratio_pct | sample_size |
++----------------------+---------------+-------------+
+|               0.2000 |         20.00 |      161278 |
++----------------------+---------------+-------------+
+(1 row)
+
+
+=========================================
+VALIDATION 6: SAMPLE PROPERTY
+=========================================
+
++--------------+-----------------+------------------+-----------+-------+---------------------+------------------+
+|  parcel_id   | total_val_cents | assess_val_cents | acre_area | type_ |     subdivname      | property_address |
++--------------+-----------------+------------------+-----------+-------+---------------------+------------------+
+| 02-07504-000 |        30357000 |          6071400 |      0.34 | RI    | ROSEWOOD ADD-ROGERS | 920 S 21ST ST    |
++--------------+-----------------+------------------+-----------+-------+---------------------+------------------+
+(1 row)
+
