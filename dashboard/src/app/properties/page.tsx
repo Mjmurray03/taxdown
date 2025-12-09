@@ -51,7 +51,7 @@ import { AddToPortfolioDialog } from '@/components/portfolio/add-to-portfolio-di
 import { toast } from 'sonner';
 import { useDebounce } from '@/lib/hooks';
 
-type SortField = 'address' | 'total_value' | 'assessed_value' | 'owner_name';
+type SortField = 'address' | 'value' | 'assessed_value' | 'fairness_score';
 
 function PropertiesPageContent() {
   const router = useRouter();
@@ -67,7 +67,7 @@ function PropertiesPageContent() {
     searchParams.get('filter') === 'appeal'
   );
   const [showFilters, setShowFilters] = useState(false);
-  const [sortBy, setSortBy] = useState<SortField>('total_value');
+  const [sortBy, setSortBy] = useState<SortField>('value');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [minValue, setMinValue] = useState('');
   const [maxValue, setMaxValue] = useState('');
@@ -151,7 +151,7 @@ function PropertiesPageContent() {
     setMinValue('');
     setMaxValue('');
     setCity('');
-    setSortBy('total_value');
+    setSortBy('value');
     setSortOrder('desc');
     setPage(1);
   };
@@ -396,17 +396,14 @@ function PropertiesPageContent() {
                         Address <SortIcon field="address" />
                       </TableHead>
                       <TableHead>Parcel ID</TableHead>
-                      <TableHead
-                        className="cursor-pointer select-none"
-                        onClick={() => handleSort('owner_name')}
-                      >
-                        Owner <SortIcon field="owner_name" />
+                      <TableHead>
+                        Owner
                       </TableHead>
                       <TableHead
                         className="text-right cursor-pointer select-none"
-                        onClick={() => handleSort('total_value')}
+                        onClick={() => handleSort('value')}
                       >
-                        Market Value <SortIcon field="total_value" />
+                        Market Value <SortIcon field="value" />
                       </TableHead>
                       <TableHead
                         className="text-right cursor-pointer select-none"
