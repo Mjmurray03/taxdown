@@ -27,7 +27,14 @@ class APISettings(BaseSettings):
     redis_url: Optional[str] = None
     cache_enabled: bool = True  # Master switch for caching
 
-    # CORS
+    # CORS - Dynamic origin patterns for flexible subdomain support
+    # These regex patterns allow dynamic Vercel subdomains
+    cors_origin_patterns: List[str] = [
+        r"^https://.*\.vercel\.app$",  # All Vercel subdomains
+        r"^http://localhost:\d+$",      # All localhost ports
+        r"^https://(www\.)?taxdown\.com$",  # Production domain
+    ]
+    # Static origins for backwards compatibility (checked first)
     cors_origins: List[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
@@ -36,8 +43,8 @@ class APISettings(BaseSettings):
         "https://www.taxdown.com",
     ]
     cors_allow_credentials: bool = True
-    cors_allow_methods: List[str] = ["*"]
-    cors_allow_headers: List[str] = ["*"]
+    cors_allow_methods: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+    cors_allow_headers: List[str] = ["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"]
 
     # Database
     database_url: str

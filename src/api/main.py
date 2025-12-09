@@ -1,8 +1,9 @@
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from contextlib import asynccontextmanager
+from starlette.middleware.base import BaseHTTPMiddleware
 import time
+import re
 
 from src.api.config import get_settings
 from src.api.dependencies import get_engine
@@ -34,6 +35,83 @@ configure_logging(
     add_caller_info=settings.debug
 )
 logger = get_logger(__name__)
+
+
+class DynamicCORSMiddleware(BaseHTTPMiddleware):
+    """
+    Custom CORS middleware that:
+    1. Supports dynamic origin patterns (regex) for Vercel subdomains
+    2. Adds CORS headers to ALL responses, including errors (422, 500, etc.)
+    3. Properly handles preflight OPTIONS requests
+    """
+
+    def __init__(self, app, settings):
+        super().__init__(app)
+        self.allowed_origins = set(settings.cors_origins)
+        self.origin_patterns = [re.compile(p) for p in settings.cors_origin_patterns]
+        self.allow_credentials = settings.cors_allow_credentials
+        self.allow_methods = ", ".join(settings.cors_allow_methods)
+        self.allow_headers = ", ".join(settings.cors_allow_headers)
+
+    def is_origin_allowed(self, origin: str) -> bool:
+        """Check if origin is allowed via static list or regex patterns."""
+        if not origin:
+            return False
+
+        # Check static origins first (faster)
+        if origin in self.allowed_origins:
+            return True
+
+        # Check regex patterns
+        for pattern in self.origin_patterns:
+            if pattern.match(origin):
+                return True
+
+        return False
+
+    def add_cors_headers(self, response, origin: str):
+        """Add CORS headers to response."""
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true" if self.allow_credentials else "false"
+        response.headers["Access-Control-Allow-Methods"] = self.allow_methods
+        response.headers["Access-Control-Allow-Headers"] = self.allow_headers
+        response.headers["Access-Control-Expose-Headers"] = "X-Request-ID"
+        return response
+
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin", "")
+
+        # Handle preflight OPTIONS requests
+        if request.method == "OPTIONS":
+            if self.is_origin_allowed(origin):
+                response = Response(status_code=200)
+                self.add_cors_headers(response, origin)
+                # Add max age for preflight cache
+                response.headers["Access-Control-Max-Age"] = "86400"  # 24 hours
+                return response
+            else:
+                # Origin not allowed - return 403
+                return Response(status_code=403, content="Origin not allowed")
+
+        # Process the actual request
+        try:
+            response = await call_next(request)
+        except Exception as e:
+            # Even on exceptions, we need to add CORS headers
+            # Create a basic error response
+            response = JSONResponse(
+                status_code=500,
+                content={"detail": "Internal server error"}
+            )
+            if self.is_origin_allowed(origin):
+                self.add_cors_headers(response, origin)
+            raise  # Re-raise after setting up the response headers
+
+        # Add CORS headers to successful responses and error responses
+        if self.is_origin_allowed(origin):
+            self.add_cors_headers(response, origin)
+
+        return response
 
 
 @asynccontextmanager
@@ -106,14 +184,11 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS middleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=settings.cors_allow_credentials,
-        allow_methods=settings.cors_allow_methods,
-        allow_headers=settings.cors_allow_headers,
-    )
+    # Custom CORS middleware with dynamic origin support and error response handling
+    # This replaces the default CORSMiddleware to:
+    # 1. Support regex patterns for Vercel subdomains (*.vercel.app)
+    # 2. Ensure CORS headers are added to ALL responses including errors (422, 500)
+    app.add_middleware(DynamicCORSMiddleware, settings=settings)
 
     # Rate limiting middleware
     app.add_middleware(
