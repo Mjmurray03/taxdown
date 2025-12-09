@@ -48,31 +48,32 @@ async def analyze_property(
     - Comparable properties used in analysis
     """
     cache = get_cache_manager()
+    engine = get_engine()
 
-    # Resolve property ID
-    property_id = request.property_id
-    if not property_id and request.parcel_id:
-        property_id = _lookup_property_id(get_engine(), request.parcel_id)
+    # Resolve parcel_id - the analyzer service works with parcel_id, not UUID
+    parcel_id = request.parcel_id
+    if not parcel_id and request.property_id:
+        # Look up parcel_id from UUID
+        parcel_id = _lookup_parcel_id(engine, request.property_id)
 
-    if not property_id:
+    if not parcel_id:
         raise HTTPException(
             status_code=400,
-            detail="Either property_id or parcel_id must be provided"
+            detail="Either property_id or parcel_id must be provided, and property must exist"
         )
 
     # Check cache if not forcing reanalysis
-    analysis_id = request.parcel_id if request.parcel_id else property_id
-    analysis_cache_key = f"taxdown:analysis:{cache_key(analysis_id, request.mill_rate)}"
+    analysis_cache_key = f"taxdown:analysis:{cache_key(parcel_id, request.mill_rate)}"
 
     if not request.force_reanalyze:
         cached_result = cache.get(analysis_cache_key)
         if cached_result is not None:
-            logger.debug(f"Cache hit for analysis: {analysis_id}")
+            logger.debug(f"Cache hit for analysis: {parcel_id}")
             return APIResponse(data=AssessmentAnalysisResult(**cached_result))
 
     try:
-        # Run analysis
-        analysis = analyzer.analyze_property(property_id=analysis_id)
+        # Run analysis - the analyzer expects parcel_id
+        analysis = analyzer.analyze_property(property_id=parcel_id)
 
         if not analysis:
             raise HTTPException(
@@ -267,8 +268,9 @@ async def get_analysis_history(
         return APIResponse(data=history)
 
 
-# Helper
+# Helper functions
 def _lookup_property_id(engine, parcel_id: str) -> Optional[str]:
+    """Look up UUID from parcel_id."""
     from sqlalchemy import text
     with engine.connect() as conn:
         result = conn.execute(
@@ -277,3 +279,15 @@ def _lookup_property_id(engine, parcel_id: str) -> Optional[str]:
         )
         row = result.first()
         return str(row[0]) if row else None
+
+
+def _lookup_parcel_id(engine, property_id: str) -> Optional[str]:
+    """Look up parcel_id from UUID."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("SELECT parcel_id FROM properties WHERE id::text = :property_id"),
+            {"property_id": property_id}
+        )
+        row = result.first()
+        return row[0] if row else None
