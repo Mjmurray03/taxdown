@@ -140,6 +140,18 @@ export default function AppealsPage() {
     downloadMutation.mutate(propertyId);
   };
 
+  // Delete appeal mutation
+  const deleteMutation = useMutation({
+    mutationFn: (appealId: string) => appealApi.delete(appealId),
+    onSuccess: () => {
+      toast.success('Appeal deleted');
+      queryClient.invalidateQueries({ queryKey: ['appeals'] });
+    },
+    onError: (error) => {
+      toast.error('Failed to delete appeal: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    },
+  });
+
   const handleDeleteClick = (appealId: string) => {
     setAppealToDelete(appealId);
     setDeleteDialogOpen(true);
@@ -147,9 +159,7 @@ export default function AppealsPage() {
 
   const handleDeleteConfirm = () => {
     if (appealToDelete) {
-      // API call would go here
-      toast.success('Appeal deleted');
-      queryClient.invalidateQueries({ queryKey: ['appeals'] });
+      deleteMutation.mutate(appealToDelete);
     }
     setDeleteDialogOpen(false);
     setAppealToDelete(null);
@@ -511,6 +521,7 @@ export default function AppealsPage() {
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={handleDeleteConfirm}
+        loading={deleteMutation.isPending}
       />
     </MainLayout>
   );

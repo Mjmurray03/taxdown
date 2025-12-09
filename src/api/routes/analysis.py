@@ -185,11 +185,25 @@ async def bulk_analyze(
     appeal_candidates = 0
     total_savings_cents = 0
 
+    engine = get_engine()
+
     for property_id in request.property_ids:
         try:
-            analysis = analyzer.analyze_property(property_id=property_id)
+            # Resolve to parcel_id first
+            parcel_id = resolve_to_parcel_id(engine, property_id)
+            if not parcel_id:
+                skipped += 1
+                continue
+
+            analysis = analyzer.analyze_property(property_id=parcel_id)
 
             if analysis:
+                # Save analysis to database
+                try:
+                    analyzer.save_analysis(analysis)
+                except Exception as save_err:
+                    logger.warning(f"Failed to save bulk analysis for {parcel_id}: {save_err}")
+
                 result = AssessmentAnalysisResult(
                     property_id=str(analysis.property_id),
                     parcel_id=analysis.parcel_id,
@@ -222,6 +236,7 @@ async def bulk_analyze(
                 skipped += 1
 
         except Exception as e:
+            logger.error(f"Bulk analysis error for {property_id}: {e}")
             errors += 1
 
     duration = time.time() - start_time

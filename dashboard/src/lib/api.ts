@@ -266,6 +266,23 @@ export const appealApi = {
       params: { status }
     });
     return response.data;
+  },
+
+  get: async (appealId: string) => {
+    const response = await api.get<APIResponse<AppealPackage>>(`/appeals/${appealId}`);
+    return response.data;
+  },
+
+  delete: async (appealId: string) => {
+    const response = await api.delete(`/appeals/${appealId}`);
+    return response.data;
+  },
+
+  updateStatus: async (appealId: string, status: string) => {
+    const response = await api.patch<APIResponse<AppealListItem>>(`/appeals/${appealId}/status`, null, {
+      params: { status }
+    });
+    return response.data;
   }
 };
 

@@ -79,14 +79,10 @@ export function AddToPortfolioDialog({
       if (!newPortfolioName.trim()) {
         throw new Error('Please enter a portfolio name');
       }
-      // This would call a create portfolio API
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/portfolios`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newPortfolioName, user_id: userId }),
+      return portfolioApi.create({
+        name: newPortfolioName.trim(),
+        user_id: userId,
       });
-      if (!response.ok) throw new Error('Failed to create portfolio');
-      return response.json();
     },
     onSuccess: (data) => {
       toast.success('Portfolio created');
