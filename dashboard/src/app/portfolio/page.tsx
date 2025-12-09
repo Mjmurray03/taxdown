@@ -58,7 +58,7 @@ import {
 import { CreatePortfolioDialog } from '@/components/portfolio/create-portfolio-dialog';
 import { PropertySearchDialog } from '@/components/properties/property-search-dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { useDownload } from '@/lib/hooks';
+import { useDownload, useLocalStorage } from '@/lib/hooks';
 import { toast } from 'sonner';
 
 export default function PortfolioPage() {
@@ -69,7 +69,7 @@ export default function PortfolioPage() {
 
   // State
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
+  const [selectedPortfolioId, setSelectedPortfolioId] = useLocalStorage<string | null>('selected-portfolio-id', null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [addPropertyDialogOpen, setAddPropertyDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -293,7 +293,7 @@ export default function PortfolioPage() {
                   <div className="text-center">
                     <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
                     <p className="text-sm text-gray-500">Failed to load portfolios</p>
-                    <Button variant="outline" size="sm" onClick={() => refetchPortfolios()} className="mt-2">
+                    <Button variant="secondary" size="sm" onClick={() => refetchPortfolios()} className="mt-2">
                       Retry
                     </Button>
                   </div>
@@ -425,7 +425,7 @@ export default function PortfolioPage() {
                       </div>
                       <div className="flex gap-2">
                         <Button
-                          variant="outline"
+                          variant="secondary"
                           size="sm"
                           onClick={() => refetchDetail()}
                         >
@@ -433,7 +433,7 @@ export default function PortfolioPage() {
                         </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm">
+                            <Button variant="secondary" size="sm">
                               <Download className="h-4 w-4 mr-2" />
                               Export
                             </Button>
@@ -448,7 +448,7 @@ export default function PortfolioPage() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                         <Button
-                          variant="outline"
+                          variant="secondary"
                           size="sm"
                           onClick={handleImportClick}
                           disabled={importMutation.isPending}

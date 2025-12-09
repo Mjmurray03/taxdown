@@ -183,7 +183,7 @@ export function PropertySearchDialog({
 
         {/* Footer */}
         <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="secondary" onClick={handleClose}>
             Cancel
           </Button>
           <Button onClick={handleConfirm} disabled={!selectedProperty}>

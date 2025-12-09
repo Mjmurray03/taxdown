@@ -39,9 +39,6 @@ import {
   Home,
   Filter,
   X,
-  RefreshCw,
-  Grid,
-  List,
   MoreHorizontal,
   TrendingUp,
   FileText,
@@ -49,12 +46,12 @@ import {
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
-import { propertyApi, analysisApi, PropertySearchParams, PropertySearchResponse } from '@/lib/api';
+import { propertyApi, analysisApi, PropertySearchParams, PropertySearchResponse, AddressSuggestion } from '@/lib/api';
 import { AddToPortfolioDialog } from '@/components/portfolio/add-to-portfolio-dialog';
 import { toast } from 'sonner';
+import { useDebounce } from '@/lib/hooks';
 
 type SortField = 'address' | 'total_value' | 'assessed_value' | 'owner_name';
-type ViewMode = 'table' | 'grid';
 
 function PropertiesPageContent() {
   const router = useRouter();
@@ -63,13 +60,13 @@ function PropertiesPageContent() {
 
   // State
   const [searchQuery, setSearchQuery] = useState(searchParams.get('query') || '');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [onlyAppealCandidates, setOnlyAppealCandidates] = useState(
     searchParams.get('filter') === 'appeal'
   );
   const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [sortBy, setSortBy] = useState<SortField>('total_value');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [minValue, setMinValue] = useState('');
@@ -103,6 +100,16 @@ function PropertiesPageContent() {
     queryFn: () => propertyApi.search(searchApiParams),
   });
 
+  // Debounced search for autocomplete
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Fetch autocomplete suggestions
+  const { data: suggestions } = useQuery<AddressSuggestion[]>({
+    queryKey: ['autocomplete', debouncedSearchQuery],
+    queryFn: () => propertyApi.autocomplete(debouncedSearchQuery),
+    enabled: debouncedSearchQuery.length >= 3 && showSuggestions,
+  });
+
   // Analysis mutation
   const analyzeMutation = useMutation({
     mutationFn: (propertyId: string) => analysisApi.analyze(propertyId, { force_refresh: true }),
@@ -119,12 +126,21 @@ function PropertiesPageContent() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
+    setShowSuggestions(false);
     refetch();
   };
 
   // Handle clear search
   const handleClearSearch = () => {
     setSearchQuery('');
+    setPage(1);
+    setShowSuggestions(false);
+  };
+
+  // Handle suggestion select
+  const handleSuggestionSelect = (suggestion: AddressSuggestion) => {
+    setSearchQuery(suggestion.address);
+    setShowSuggestions(false);
     setPage(1);
   };
 
@@ -183,9 +199,9 @@ function PropertiesPageContent() {
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortBy !== field) return null;
     return sortOrder === 'asc' ? (
-      <ChevronUp className="h-4 w-4 ml-1 inline" />
+      <ChevronUp className="h-3 w-3 ml-1 inline" />
     ) : (
-      <ChevronDown className="h-4 w-4 ml-1 inline" />
+      <ChevronDown className="h-3 w-3 ml-1 inline" />
     );
   };
 
@@ -199,173 +215,141 @@ function PropertiesPageContent() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Page Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-end justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Properties</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-4xl font-semibold tracking-tight text-[#09090B]">Properties</h1>
+            <p className="mt-1 text-sm text-[#71717A]">
               Search and analyze property assessments
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              disabled={isFetching}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="flex gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#71717A]" />
+            <Input
+              placeholder="Search by address, owner, or parcel ID..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowSuggestions(true);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch(e as any)}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+              className="pl-10 pr-10 h-10"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#71717A] hover:text-[#18181B]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+
+            {/* Autocomplete Suggestions */}
+            {showSuggestions && suggestions && suggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E4E4E7] rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+                {suggestions.map((suggestion) => (
+                  <button
+                    key={suggestion.property_id}
+                    type="button"
+                    onClick={() => handleSuggestionSelect(suggestion)}
+                    className="w-full px-4 py-3 text-left hover:bg-[#FAFAF9] transition-standard border-b border-[#E4E4E7] last:border-b-0"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-[#09090B]">{suggestion.address}</p>
+                        <p className="text-xs text-[#71717A]">
+                          {suggestion.city || 'Unknown City'} | {suggestion.parcel_id}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {Math.round(suggestion.match_score * 100)}% match
+                      </Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Search and Filters */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Search Properties</CardTitle>
-            <CardDescription>
-              Search by address, owner name, or parcel ID
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <form onSubmit={handleSearch} className="flex gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Enter address, owner name, or parcel ID..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-10"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={handleClearSearch}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-              <Select
-                value={onlyAppealCandidates ? 'appeal' : 'all'}
-                onValueChange={(value) => setOnlyAppealCandidates(value === 'appeal')}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Filter" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Properties</SelectItem>
-                  <SelectItem value="appeal">Appeal Candidates Only</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowFilters(!showFilters)}
-                className="relative"
-              >
-                <Filter className="h-4 w-4 mr-2" />
-                Filters
-                {activeFilterCount > 0 && (
-                  <Badge className="ml-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
-                    {activeFilterCount}
-                  </Badge>
-                )}
-              </Button>
-              <Button type="submit" disabled={isFetching}>
-                Search
-              </Button>
-            </form>
+        {/* Filter Bar */}
+        <div className="flex items-center gap-4">
+          <Select
+            value={onlyAppealCandidates ? 'appeal' : 'all'}
+            onValueChange={(value) => {
+              setOnlyAppealCandidates(value === 'appeal');
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Properties</SelectItem>
+              <SelectItem value="appeal">Appeal Candidates</SelectItem>
+            </SelectContent>
+          </Select>
 
-            {/* Advanced Filters Panel */}
-            {showFilters && (
-              <div className="border rounded-lg p-4 space-y-4 bg-gray-50">
-                <div className="grid md:grid-cols-4 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Min Value</label>
-                    <Input
-                      type="number"
-                      placeholder="$0"
-                      value={minValue}
-                      onChange={(e) => setMinValue(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Max Value</label>
-                    <Input
-                      type="number"
-                      placeholder="No limit"
-                      value={maxValue}
-                      onChange={(e) => setMaxValue(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">City</label>
-                    <Input
-                      placeholder="Any city"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-end gap-2">
-                    <Button onClick={handleApplyFilters} className="flex-1">
-                      Apply Filters
-                    </Button>
-                    <Button variant="outline" onClick={handleResetFilters}>
-                      Reset
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          <Select
+            value={`${minValue || '0'}-${maxValue || 'max'}`}
+            onValueChange={(value) => {
+              if (value === 'all') {
+                setMinValue('');
+                setMaxValue('');
+              } else if (value === '0-250000') {
+                setMinValue('0');
+                setMaxValue('250000');
+              } else if (value === '250000-500000') {
+                setMinValue('250000');
+                setMaxValue('500000');
+              } else if (value === '500000-max') {
+                setMinValue('500000');
+                setMaxValue('');
+              }
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Value Range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Values</SelectItem>
+              <SelectItem value="0-250000">Under $250K</SelectItem>
+              <SelectItem value="250000-500000">$250K - $500K</SelectItem>
+              <SelectItem value="500000-max">Over $500K</SelectItem>
+            </SelectContent>
+          </Select>
 
-        {/* Results */}
+          {activeFilterCount > 0 && (
+            <Button variant="ghost" onClick={handleResetFilters}>
+              Clear Filters
+            </Button>
+          )}
+
+          <div className="ml-auto text-sm text-[#71717A]">
+            {data && <span className="font-medium tabular-nums">{data.total_count.toLocaleString()}</span>} properties
+          </div>
+        </div>
+
+        {/* Results Table */}
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Results</CardTitle>
-                {data && (
-                  <CardDescription>
-                    Showing {data.properties.length} of {data.total_count.toLocaleString()} properties
-                  </CardDescription>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={viewMode === 'table' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('table')}
-                >
-                  <List className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === 'grid' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('grid')}
-                >
-                  <Grid className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {/* Loading State */}
             {isLoading && (
-              <div className="space-y-4">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="flex items-center space-x-4">
-                    <Skeleton className="h-12 w-12 rounded-full" />
-                    <div className="space-y-2 flex-1">
-                      <Skeleton className="h-4 w-[250px]" />
-                      <Skeleton className="h-4 w-[200px]" />
-                    </div>
-                    <Skeleton className="h-8 w-[100px]" />
+              <div className="p-6 space-y-4">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-24 ml-auto" />
                   </div>
                 ))}
               </div>
@@ -373,13 +357,13 @@ function PropertiesPageContent() {
 
             {/* Error State */}
             {error && (
-              <div className="text-center py-10">
-                <AlertTriangle className="h-10 w-10 text-red-500 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900">Error loading properties</h3>
-                <p className="text-gray-500 mt-2">
+              <div className="text-center py-16">
+                <AlertTriangle className="h-12 w-12 text-[#991B1B] mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-[#09090B]">Error loading properties</h3>
+                <p className="text-sm text-[#71717A] mt-2">
                   {error instanceof Error ? error.message : 'Something went wrong'}
                 </p>
-                <Button onClick={() => refetch()} variant="outline" className="mt-4">
+                <Button onClick={() => refetch()} variant="secondary" className="mt-6">
                   Try Again
                 </Button>
               </div>
@@ -387,118 +371,123 @@ function PropertiesPageContent() {
 
             {/* Empty State */}
             {data && data.properties.length === 0 && (
-              <div className="text-center py-10">
-                <Home className="h-10 w-10 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900">No properties found</h3>
-                <p className="text-gray-500 mt-2">
+              <div className="text-center py-16">
+                <Home className="h-12 w-12 text-[#D4D4D8] mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-[#09090B]">No properties found</h3>
+                <p className="text-sm text-[#71717A] mt-2">
                   Try adjusting your search or filters
                 </p>
-                <Button variant="outline" onClick={handleResetFilters} className="mt-4">
+                <Button variant="secondary" onClick={handleResetFilters} className="mt-6">
                   Reset Filters
                 </Button>
               </div>
             )}
 
             {/* Table View */}
-            {data && data.properties.length > 0 && viewMode === 'table' && (
+            {data && data.properties.length > 0 && (
               <>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead
-                        className="cursor-pointer hover:bg-gray-50"
+                        className="cursor-pointer select-none"
                         onClick={() => handleSort('address')}
                       >
                         Address <SortIcon field="address" />
                       </TableHead>
                       <TableHead>Parcel ID</TableHead>
                       <TableHead
-                        className="cursor-pointer hover:bg-gray-50"
+                        className="cursor-pointer select-none"
                         onClick={() => handleSort('owner_name')}
                       >
                         Owner <SortIcon field="owner_name" />
                       </TableHead>
                       <TableHead
-                        className="text-right cursor-pointer hover:bg-gray-50"
+                        className="text-right cursor-pointer select-none"
                         onClick={() => handleSort('total_value')}
                       >
                         Market Value <SortIcon field="total_value" />
                       </TableHead>
                       <TableHead
-                        className="text-right cursor-pointer hover:bg-gray-50"
+                        className="text-right cursor-pointer select-none"
                         onClick={() => handleSort('assessed_value')}
                       >
                         Assessed Value <SortIcon field="assessed_value" />
                       </TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead></TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-12"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.properties.map((property) => (
-                      <TableRow key={property.id}>
+                      <TableRow key={property.id} className="group">
                         <TableCell className="font-medium">
-                          {property.address || 'N/A'}
+                          <Link
+                            href={`/properties/${property.id}`}
+                            className="text-[#1E40AF] hover:underline"
+                          >
+                            {property.address || 'N/A'}
+                          </Link>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-[#71717A] font-mono text-xs">
                           {property.parcel_id}
                         </TableCell>
-                        <TableCell className="max-w-[200px] truncate">
+                        <TableCell className="max-w-[200px] truncate text-[#71717A]">
                           {property.owner_name || 'N/A'}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right font-mono tabular-nums">
                           {formatCurrency(property.total_value)}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right font-mono tabular-nums">
                           {formatCurrency(property.assessed_value)}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">
-                            {property.property_type || 'Unknown'}
-                          </Badge>
+                          {property.is_appeal_candidate && (
+                            <Badge variant="warning" className="text-xs">
+                              Appeal Candidate
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Link href={`/properties/${property.id}`}>
-                              <Button variant="ghost" size="sm">
-                                View
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon-sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                <MoreHorizontal className="h-4 w-4" />
                               </Button>
-                            </Link>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => handleAnalyze(property.id)}
-                                  disabled={analyzeMutation.isPending}
-                                >
-                                  <TrendingUp className="h-4 w-4 mr-2" />
-                                  Run Analysis
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => router.push(`/properties/${property.id}?tab=appeal`)}
-                                >
-                                  <FileText className="h-4 w-4 mr-2" />
-                                  Generate Appeal
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    handleAddToPortfolio(
-                                      property.id,
-                                      property.parcel_id,
-                                      property.address || ''
-                                    )
-                                  }
-                                >
-                                  <Briefcase className="h-4 w-4 mr-2" />
-                                  Add to Portfolio
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem asChild>
+                                <Link href={`/properties/${property.id}`} className="cursor-pointer">
+                                  View Details
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleAnalyze(property.id)}
+                                disabled={analyzeMutation.isPending}
+                              >
+                                <TrendingUp className="h-4 w-4 mr-2" />
+                                Run Analysis
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => router.push(`/properties/${property.id}?tab=appeal`)}
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                Generate Appeal
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  handleAddToPortfolio(
+                                    property.id,
+                                    property.parcel_id,
+                                    property.address || ''
+                                  )
+                                }
+                              >
+                                <Briefcase className="h-4 w-4 mr-2" />
+                                Add to Portfolio
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -506,13 +495,13 @@ function PropertiesPageContent() {
                 </Table>
 
                 {/* Pagination */}
-                <div className="flex items-center justify-between mt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Page {data.page} of {data.total_pages}
+                <div className="flex items-center justify-between px-6 py-4 border-t border-[#E4E4E7]">
+                  <p className="text-sm text-[#71717A]">
+                    Page <span className="font-medium tabular-nums">{data.page}</span> of <span className="font-medium tabular-nums">{data.total_pages}</span>
                   </p>
                   <div className="flex gap-2">
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                       disabled={page === 1 || isFetching}
@@ -521,107 +510,7 @@ function PropertiesPageContent() {
                       Previous
                     </Button>
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => p + 1)}
-                      disabled={!data.has_more || isFetching}
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Grid View */}
-            {data && data.properties.length > 0 && viewMode === 'grid' && (
-              <>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {data.properties.map((property) => (
-                    <Card key={property.id} className="hover:shadow-md transition-shadow">
-                      <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                              <Home className="h-5 w-5 text-blue-600" />
-                            </div>
-                            <div>
-                              <CardTitle className="text-sm">
-                                {property.address || 'Unknown Address'}
-                              </CardTitle>
-                              <CardDescription>{property.parcel_id}</CardDescription>
-                            </div>
-                          </div>
-                          <Badge variant="outline">
-                            {property.property_type || 'Unknown'}
-                          </Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <p className="text-muted-foreground">Market Value</p>
-                            <p className="font-medium">{formatCurrency(property.total_value)}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Assessed</p>
-                            <p className="font-medium">{formatCurrency(property.assessed_value)}</p>
-                          </div>
-                        </div>
-                        <p className="text-sm text-muted-foreground truncate">
-                          Owner: {property.owner_name || 'N/A'}
-                        </p>
-                        <div className="flex gap-2">
-                          <Link href={`/properties/${property.id}`} className="flex-1">
-                            <Button variant="outline" size="sm" className="w-full">
-                              View
-                            </Button>
-                          </Link>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleAnalyze(property.id)}
-                            disabled={analyzeMutation.isPending}
-                          >
-                            <TrendingUp className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              handleAddToPortfolio(
-                                property.id,
-                                property.parcel_id,
-                                property.address || ''
-                              )
-                            }
-                          >
-                            <Briefcase className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-
-                {/* Pagination */}
-                <div className="flex items-center justify-between mt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Page {data.page} of {data.total_pages}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1 || isFetching}
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       onClick={() => setPage((p) => p + 1)}
                       disabled={!data.has_more || isFetching}
@@ -655,32 +544,22 @@ function PropertiesPageContent() {
 function PropertiesPageFallback() {
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-8">
+        <div className="flex items-end justify-between">
           <div>
             <Skeleton className="h-10 w-48" />
             <Skeleton className="h-4 w-64 mt-2" />
           </div>
         </div>
+        <Skeleton className="h-10 w-full" />
         <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-4 w-60" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-10 w-full" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
+          <CardContent className="p-6">
             <div className="space-y-4">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex items-center space-x-4">
-                  <Skeleton className="h-12 w-12 rounded-full" />
-                  <div className="space-y-2 flex-1">
-                    <Skeleton className="h-4 w-[250px]" />
-                    <Skeleton className="h-4 w-[200px]" />
-                  </div>
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-24 ml-auto" />
                 </div>
               ))}
             </div>

@@ -173,7 +173,7 @@ export function AddToPortfolioDialog({
               )}
 
               <Button
-                variant="outline"
+                variant="secondary"
                 className="w-full"
                 onClick={() => setShowNewPortfolio(true)}
               >
@@ -196,7 +196,7 @@ export function AddToPortfolioDialog({
                 />
               </div>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => setShowNewPortfolio(false)}
               >
@@ -207,7 +207,7 @@ export function AddToPortfolioDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={isSubmitting || (!showNewPortfolio && !selectedPortfolio)}>

@@ -2,35 +2,42 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { format } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Home,
-  DollarSign,
-  TrendingUp,
-  AlertTriangle,
-  ArrowRight,
-  Calendar,
-  RefreshCw
-} from 'lucide-react';
-import { propertyApi, PropertySearchResponse } from '@/lib/api';
+import { ArrowRight } from 'lucide-react';
+import { propertyApi, portfolioApi, PropertySearchResponse, DashboardData, APIResponse } from '@/lib/api';
+import { useLocalStorage } from '@/lib/hooks';
 
 export function DashboardPage() {
-  // Fetch total properties count
-  const { data: allProperties, isLoading: loadingAll, refetch: refetchAll } = useQuery<PropertySearchResponse>({
+  // Get selected portfolio from local storage
+  const [selectedPortfolioId] = useLocalStorage<string | null>('selected-portfolio-id', null);
+
+  // Fetch dashboard data from portfolio if available
+  const { data: dashboardResponse, isLoading: loadingDashboard } = useQuery<APIResponse<DashboardData>>({
+    queryKey: ['dashboard', selectedPortfolioId],
+    queryFn: () => portfolioApi.getDashboard(selectedPortfolioId!),
+    enabled: !!selectedPortfolioId,
+  });
+
+  const dashboardData = dashboardResponse?.data;
+
+  // Fallback: Fetch total properties count if no portfolio selected
+  const { data: allProperties, isLoading: loadingAll } = useQuery<PropertySearchResponse>({
     queryKey: ['dashboard-all-properties'],
     queryFn: () => propertyApi.search({ page: 1, page_size: 1 }),
+    enabled: !selectedPortfolioId,
   });
 
   // Fetch appeal candidates
-  const { data: appealCandidates, isLoading: loadingCandidates, refetch: refetchCandidates } = useQuery<PropertySearchResponse>({
+  const { data: appealCandidates, isLoading: loadingCandidates } = useQuery<PropertySearchResponse>({
     queryKey: ['dashboard-appeal-candidates'],
     queryFn: () => propertyApi.search({ only_appeal_candidates: true, page: 1, page_size: 5 }),
   });
 
-  const isLoading = loadingAll || loadingCandidates;
+  const isLoading = loadingDashboard || loadingAll || loadingCandidates;
 
   const formatCurrency = (value: number | null | undefined) => {
     if (value === null || value === undefined) return '$0';
@@ -46,228 +53,274 @@ export function DashboardPage() {
     return new Intl.NumberFormat('en-US').format(value);
   };
 
-  // Calculate days until deadline (March 1, 2025)
-  const deadline = new Date('2025-03-01');
+  // Calculate days until deadline (March 1, 2026)
+  const deadline = new Date('2026-03-01');
   const today = new Date();
   const daysUntilDeadline = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-  const handleRefresh = () => {
-    refetchAll();
-    refetchCandidates();
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Property tax assessment overview and insights
+          <h1 className="text-4xl font-semibold tracking-tight text-[#09090B]">Dashboard</h1>
+          <p className="mt-1 text-sm text-[#71717A]">
+            {format(today, 'MMMM d, yyyy')}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          <Badge variant="outline" className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            Appeal Deadline: March 1, 2025
-          </Badge>
-          <Badge variant={daysUntilDeadline < 30 ? "destructive" : "secondary"}>
-            {daysUntilDeadline} days left
-          </Badge>
-        </div>
+        <Button size="default">
+          Analyze Portfolio
+        </Button>
       </div>
 
-      {/* Metrics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Properties</CardTitle>
-            <Home className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loadingAll ? (
-              <Skeleton className="h-8 w-24" />
+      {/* KPI Cards Row */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {/* Total Properties */}
+        <Card className="p-6">
+          <div className="space-y-2">
+            <p className="text-caption text-[#71717A]">Total Properties</p>
+            {isLoading ? (
+              <Skeleton className="h-10 w-32" />
             ) : (
-              <div className="text-2xl font-bold">{formatNumber(allProperties?.total_count)}</div>
+              <p className="text-display tabular-nums text-[#09090B]" style={{ fontSize: '2.25rem' }}>
+                {formatNumber(dashboardData?.metrics.total_properties || allProperties?.total_count)}
+              </p>
             )}
-            <p className="text-xs text-muted-foreground">
-              Benton County, AR properties tracked
-            </p>
-          </CardContent>
+          </div>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Assessed Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$4.2B</div>
-            <p className="text-xs text-muted-foreground">
-              Combined property assessments
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Appeal Candidates</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loadingCandidates ? (
-              <Skeleton className="h-8 w-24" />
+
+        {/* Portfolio Value */}
+        <Card className="p-6">
+          <div className="space-y-2">
+            <p className="text-caption text-[#71717A]">Total Market Value</p>
+            {isLoading ? (
+              <Skeleton className="h-10 w-32" />
             ) : (
-              <div className="text-2xl font-bold">{formatNumber(appealCandidates?.total_count)}</div>
+              <p className="text-display tabular-nums text-[#09090B]" style={{ fontSize: '2.25rem' }}>
+                {dashboardData?.metrics.total_market_value
+                  ? formatCurrency(dashboardData.metrics.total_market_value)
+                  : 'N/A'}
+              </p>
             )}
-            <p className="text-xs text-muted-foreground">
-              Properties with appeal potential
-            </p>
-          </CardContent>
+          </div>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Potential Savings</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$8.4M</div>
-            <p className="text-xs text-muted-foreground">
-              Estimated annual tax savings
-            </p>
-          </CardContent>
+
+        {/* Potential Savings */}
+        <Card className="p-6">
+          <div className="space-y-2">
+            <p className="text-caption text-[#71717A]">Potential Savings</p>
+            {isLoading ? (
+              <Skeleton className="h-10 w-32" />
+            ) : (
+              <p className="text-display tabular-nums text-[#09090B]" style={{ fontSize: '2.25rem' }}>
+                {dashboardData?.metrics.total_potential_savings
+                  ? formatCurrency(dashboardData.metrics.total_potential_savings)
+                  : 'N/A'}
+              </p>
+            )}
+          </div>
+        </Card>
+
+        {/* Appeal Candidates */}
+        <Card className="p-6">
+          <div className="space-y-2">
+            <p className="text-caption text-[#71717A]">Appeal Candidates</p>
+            {isLoading ? (
+              <Skeleton className="h-10 w-32" />
+            ) : (
+              <p className="text-display tabular-nums text-[#09090B]" style={{ fontSize: '2.25rem' }}>
+                {formatNumber(dashboardData?.metrics.appeal_candidates || appealCandidates?.total_count)}
+              </p>
+            )}
+          </div>
         </Card>
       </div>
 
-      {/* Main Content Area */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {/* Top Savings Opportunities */}
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Top Savings Opportunities</CardTitle>
-            <CardDescription>
-              Properties with the highest potential tax savings
-            </CardDescription>
+      {/* Main Content Grid */}
+      <div className="grid gap-8 lg:grid-cols-3">
+        {/* Appeal Opportunities - Takes 2 columns */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-4 border-b border-[#E4E4E7]">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xl font-semibold">Top Opportunities</CardTitle>
+              <Link href="/properties?filter=appeal" className="text-sm font-medium text-[#1E40AF] hover:underline">
+                View All
+              </Link>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {loadingCandidates ? (
               <div className="space-y-4">
                 {[...Array(5)].map((_, i) => (
-                  <div key={i} className="flex items-center space-x-4">
-                    <Skeleton className="h-10 w-10 rounded-full" />
+                  <div key={i} className="flex items-center justify-between py-3">
                     <div className="space-y-2 flex-1">
-                      <Skeleton className="h-4 w-[200px]" />
-                      <Skeleton className="h-3 w-[150px]" />
+                      <Skeleton className="h-4 w-48" />
+                      <Skeleton className="h-3 w-32" />
                     </div>
-                    <Skeleton className="h-6 w-[80px]" />
+                    <Skeleton className="h-4 w-24" />
                   </div>
                 ))}
               </div>
+            ) : dashboardData?.top_savings_opportunities && dashboardData.top_savings_opportunities.length > 0 ? (
+              <div className="space-y-1">
+                {dashboardData.top_savings_opportunities.map((property) => (
+                  <Link
+                    key={property.parcel_id}
+                    href={`/properties?parcel_id=${property.parcel_id}`}
+                    className="flex items-center justify-between py-3 px-4 -mx-4 rounded-md hover:bg-[#FAFAF9] transition-standard group"
+                  >
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-[#09090B]">
+                        {property.address}
+                      </p>
+                      <p className="text-xs text-[#71717A] mt-0.5 tabular-nums">
+                        Parcel: {property.parcel_id}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-mono tabular-nums text-[#09090B]">
+                        {formatCurrency(property.potential_savings)}
+                      </p>
+                      <ArrowRight className="h-4 w-4 text-[#71717A] group-hover:text-[#18181B] transition-standard" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
             ) : appealCandidates?.properties && appealCandidates.properties.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-1">
                 {appealCandidates.properties.map((property) => (
                   <Link
                     key={property.id}
                     href={`/properties/${property.id}`}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors block"
+                    className="flex items-center justify-between py-3 px-4 -mx-4 rounded-md hover:bg-[#FAFAF9] transition-standard group"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                        <Home className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{property.address || 'Unknown Address'}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {property.parcel_id} | {formatCurrency(property.total_value)}
-                        </p>
-                      </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-[#09090B]">
+                        {property.address || 'Unknown Address'}
+                      </p>
+                      <p className="text-xs text-[#71717A] mt-0.5 tabular-nums">
+                        {formatCurrency(property.total_value)}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant="secondary" className="text-green-600 bg-green-50">
-                        {property.property_type || 'Unknown'}
-                      </Badge>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-mono tabular-nums text-[#09090B]">
+                        Est. TBD
+                      </p>
+                      <ArrowRight className="h-4 w-4 text-[#71717A] group-hover:text-[#18181B] transition-standard" />
                     </div>
                   </Link>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8">
-                <TrendingUp className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-muted-foreground">No appeal candidates found yet</p>
-                <p className="text-sm text-muted-foreground">Run analysis on properties to find opportunities</p>
+              <div className="text-center py-12">
+                <p className="text-sm text-[#71717A]">No appeal candidates found</p>
+                <p className="text-xs text-[#A1A1AA] mt-1">Run analysis on properties to find opportunities</p>
               </div>
             )}
-            <Link href="/properties?filter=appeal">
-              <Button variant="outline" className="w-full mt-4">
-                View All Properties
-              </Button>
-            </Link>
           </CardContent>
         </Card>
 
-        {/* Quick Actions */}
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>
-              Common tasks and workflows
-            </CardDescription>
+        {/* Assessment Overview - Takes 1 column */}
+        <Card>
+          <CardHeader className="pb-4 border-b border-[#E4E4E7]">
+            <CardTitle className="text-xl font-semibold">Assessment Overview</CardTitle>
+            <CardDescription className="text-xs text-[#71717A]">Last 30 days</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <Link href="/properties">
-              <Button variant="outline" className="w-full justify-start">
-                <Home className="mr-2 h-4 w-4" />
-                Search Properties
-              </Button>
-            </Link>
-            <Link href="/properties">
-              <Button variant="outline" className="w-full justify-start">
-                <TrendingUp className="mr-2 h-4 w-4" />
-                Run Assessment Analysis
-              </Button>
-            </Link>
-            <Link href="/appeals">
-              <Button variant="outline" className="w-full justify-start">
-                <AlertTriangle className="mr-2 h-4 w-4" />
-                Manage Appeals
-              </Button>
-            </Link>
-            <Link href="/reports">
-              <Button variant="outline" className="w-full justify-start">
-                <DollarSign className="mr-2 h-4 w-4" />
-                View Reports
-              </Button>
-            </Link>
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              {/* Assessment distribution */}
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-sm text-[#09090B]">Fairly Assessed</p>
+                    <p className="text-sm font-medium tabular-nums text-[#09090B]">142,891</p>
+                  </div>
+                  <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#D4D4D8] rounded-full" style={{ width: '82%' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-sm text-[#09090B]">Slightly Over</p>
+                    <p className="text-sm font-medium tabular-nums text-[#09090B]">18,423</p>
+                  </div>
+                  <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#A1A1AA] rounded-full" style={{ width: '11%' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-sm text-[#09090B]">Moderately Over</p>
+                    <p className="text-sm font-medium tabular-nums text-[#09090B]">8,942</p>
+                  </div>
+                  <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#71717A] rounded-full" style={{ width: '5%' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-sm text-[#09090B]">Significantly Over</p>
+                    <p className="text-sm font-medium tabular-nums text-[#09090B]">3,487</p>
+                  </div>
+                  <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#18181B] rounded-full" style={{ width: '2%' }} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-[#E4E4E7]">
+                <p className="text-sm text-[#71717A]">
+                  {formatNumber(appealCandidates?.total_count || 0)} properties may benefit from appeal
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* System Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle>System Status</CardTitle>
-          <CardDescription>API and data pipeline health</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-green-500" />
-              <span className="text-sm">API: Healthy</span>
+      {/* Deadline Banner */}
+      {daysUntilDeadline > 0 && (
+        <Card className={`border-[#E4E4E7] ${
+          daysUntilDeadline < 14
+            ? 'bg-[#FEF2F2]'
+            : daysUntilDeadline < 30
+            ? 'bg-[#FEF3C7]'
+            : 'bg-[#FAFAF9]'
+        }`}>
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`h-2 w-2 rounded-full ${
+                  daysUntilDeadline < 14
+                    ? 'bg-[#991B1B]'
+                    : daysUntilDeadline < 30
+                    ? 'bg-[#A16207]'
+                    : 'bg-[#166534]'
+                }`} />
+                <p className="text-sm text-[#09090B]">
+                  Appeal deadline: <span className="font-medium">
+                    {dashboardData?.appeal_deadline
+                      ? format(new Date(dashboardData.appeal_deadline), 'MMMM d, yyyy')
+                      : 'March 1, 2026'}
+                  </span>
+                </p>
+              </div>
+              <p className={`text-sm font-semibold tabular-nums ${
+                daysUntilDeadline < 14
+                  ? 'text-[#991B1B]'
+                  : daysUntilDeadline < 30
+                  ? 'text-[#A16207]'
+                  : 'text-[#09090B]'
+              }`}>
+                {dashboardData?.days_until_deadline || daysUntilDeadline} days remaining
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-green-500" />
-              <span className="text-sm">Database: Connected</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-green-500" />
-              <span className="text-sm">Last Sync: 5 min ago</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

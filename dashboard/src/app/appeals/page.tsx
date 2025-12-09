@@ -163,7 +163,7 @@ export default function AppealsPage() {
   };
 
   // Calculate days until deadline
-  const deadline = new Date('2025-03-01');
+  const deadline = new Date('2026-03-01');
   const today = new Date();
   const daysUntilDeadline = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -179,9 +179,9 @@ export default function AppealsPage() {
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="flex items-center gap-1">
               <Calendar className="h-3 w-3" />
-              Filing Deadline: March 1, 2025
+              Filing Deadline: March 1, 2026
             </Badge>
-            <Badge variant={daysUntilDeadline < 30 ? 'destructive' : 'secondary'}>
+            <Badge variant={daysUntilDeadline < 30 ? 'error' : 'secondary'}>
               {daysUntilDeadline} days left
             </Badge>
           </div>
@@ -196,7 +196,7 @@ export default function AppealsPage() {
                 <div>
                   <p className="font-medium text-yellow-800">Filing Deadline Approaching</p>
                   <p className="text-sm text-yellow-700">
-                    Submit your appeals before March 1, 2025 to be considered for this tax year.
+                    Submit your appeals before March 1, 2026 to be considered for this tax year.
                   </p>
                 </div>
               </div>
@@ -217,7 +217,7 @@ export default function AppealsPage() {
               </div>
               <div className="flex gap-2">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   onClick={() => refetch()}
                   disabled={isFetching}
@@ -272,7 +272,7 @@ export default function AppealsPage() {
                 <p className="text-gray-500 mt-2">
                   {error instanceof Error ? error.message : 'Something went wrong'}
                 </p>
-                <Button onClick={() => refetch()} variant="outline" className="mt-4">
+                <Button onClick={() => refetch()} variant="secondary" className="mt-4">
                   Try Again
                 </Button>
               </div>
@@ -290,7 +290,7 @@ export default function AppealsPage() {
                 </p>
                 <div className="flex gap-2 justify-center mt-4">
                   {statusFilter !== 'all' && (
-                    <Button variant="outline" onClick={() => setStatusFilter('all')}>
+                    <Button variant="secondary" onClick={() => setStatusFilter('all')}>
                       Clear Filter
                     </Button>
                   )}
@@ -482,7 +482,7 @@ export default function AppealsPage() {
               {/* Actions */}
               <div className="flex justify-end gap-2">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   onClick={() => handleDownload(selectedAppeal!.property_id)}
                   disabled={downloadMutation.isPending}
                 >

@@ -263,7 +263,7 @@ export default function ReportsPage() {
                   </CardHeader>
                   <CardContent>
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       className="w-full"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -288,7 +288,7 @@ export default function ReportsPage() {
                 <CardDescription>Previously generated reports</CardDescription>
               </div>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => refetchReports()}
                 disabled={loadingReports}
@@ -318,7 +318,7 @@ export default function ReportsPage() {
               <div className="text-center py-10">
                 <AlertTriangle className="h-10 w-10 text-red-500 mx-auto mb-4" />
                 <p className="text-gray-500">Failed to load reports</p>
-                <Button variant="outline" onClick={() => refetchReports()} className="mt-4">
+                <Button variant="secondary" onClick={() => refetchReports()} className="mt-4">
                   Try Again
                 </Button>
               </div>
@@ -480,7 +480,7 @@ export default function ReportsPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setGenerateDialogOpen(false)}>
+            <Button variant="secondary" onClick={() => setGenerateDialogOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -521,7 +521,7 @@ export default function ReportsPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setScheduleDialogOpen(false)}>
+            <Button variant="secondary" onClick={() => setScheduleDialogOpen(false)}>
               Close
             </Button>
           </DialogFooter>
