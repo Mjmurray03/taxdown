@@ -28,7 +28,12 @@ class APISettings(BaseSettings):
     cache_enabled: bool = True  # Master switch for caching
 
     # CORS
-    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    cors_origins: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://taxdown.vercel.app",
+        "https://www.taxdown.com",
+    ]
     cors_allow_credentials: bool = True
     cors_allow_methods: List[str] = ["*"]
     cors_allow_headers: List[str] = ["*"]
