@@ -74,19 +74,19 @@ class AssessmentAnalysis:
     comparable_count: int
     median_comparable_ratio: float
 
-    # Actual comparable properties used in analysis
-    comparables: List[Any] = None  # List of ComparableProperty objects
-
     # Savings estimate from SavingsEstimator
     estimated_annual_savings_cents: int
     estimated_five_year_savings_cents: int
 
     # Recommendation logic
     recommended_action: str  # "APPEAL", "MONITOR", "NONE"
-    appeal_strength: Optional[str]  # "STRONG", "MODERATE", "WEAK" (None if no appeal)
 
     # Metadata
     analysis_date: datetime
+
+    # Fields with default values must come last
+    appeal_strength: Optional[str] = None  # "STRONG", "MODERATE", "WEAK" (None if no appeal)
+    comparables: List[Any] = None  # List of ComparableProperty objects
     model_version: str = "1.0.0"
 
     def to_dict(self) -> Dict[str, Any]:
