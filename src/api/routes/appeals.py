@@ -24,6 +24,7 @@ from src.api.dependencies import (
     get_assessment_analyzer,
     get_pdf_generator,
 )
+from src.api.utils import resolve_to_parcel_id, resolve_property
 from src.api.schemas.appeal import (
     GenerateAppealRequest,
     AppealPackageResponse,
@@ -77,30 +78,6 @@ def _package_to_response(package: AppealPackage) -> AppealPackageResponse:
     )
 
 
-def _lookup_property_id(engine, parcel_id: str) -> Optional[str]:
-    """Look up property UUID from parcel ID."""
-    from sqlalchemy import text
-    with engine.connect() as conn:
-        result = conn.execute(
-            text("SELECT id FROM properties WHERE parcel_id = :parcel_id"),
-            {"parcel_id": parcel_id}
-        )
-        row = result.first()
-        return str(row[0]) if row else None
-
-
-def _lookup_parcel_id(engine, property_id: str) -> Optional[str]:
-    """Look up parcel ID from property UUID."""
-    from sqlalchemy import text
-    with engine.connect() as conn:
-        result = conn.execute(
-            text("SELECT parcel_id FROM properties WHERE id::text = :property_id"),
-            {"property_id": property_id}
-        )
-        row = result.first()
-        return row[0] if row else None
-
-
 @router.post("/generate", response_model=APIResponse[AppealPackageResponse])
 async def generate_appeal(
     request: GenerateAppealRequest,
@@ -132,20 +109,22 @@ async def generate_appeal(
     """
     engine = get_engine()
 
-    # Resolve property identifier
-    parcel_id = request.parcel_id
-    property_id = request.property_id
-
-    if not parcel_id and property_id:
-        parcel_id = _lookup_parcel_id(engine, property_id)
-    elif not property_id and parcel_id:
-        property_id = _lookup_property_id(engine, parcel_id)
-
-    if not parcel_id:
+    # Resolve property identifier using centralized resolver
+    identifier = request.parcel_id or request.property_id
+    if not identifier:
         raise HTTPException(
             status_code=400,
             detail="Either property_id or parcel_id must be provided"
         )
+
+    resolved = resolve_property(engine, identifier)
+    if not resolved:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Property not found: {identifier}"
+        )
+
+    parcel_id = resolved.parcel_id
 
     try:
         # Configure generator

@@ -21,6 +21,7 @@ from src.api.dependencies import (
     get_report_generator,
     get_assessment_analyzer,
 )
+from src.api.utils import resolve_to_parcel_id
 from src.api.schemas.report import (
     GenerateReportRequest,
     ReportJobResponse,
@@ -230,10 +231,15 @@ async def generate_property_analysis_report(
 ):
     """Generate analysis report for a single property."""
     try:
-        # Run analysis
-        analysis = analyzer.analyze_property(property_id)
+        # Resolve to parcel_id - analyzer expects parcel_id, not UUID
+        parcel_id = resolve_to_parcel_id(get_engine(), property_id)
+        if not parcel_id:
+            raise HTTPException(status_code=404, detail=f"Property not found: {property_id}")
+
+        # Run analysis with parcel_id
+        analysis = analyzer.analyze_property(parcel_id)
         if not analysis:
-            raise HTTPException(status_code=404, detail="Property not found")
+            raise HTTPException(status_code=404, detail="Property analysis failed")
 
         if format == ReportFormat.JSON:
             return {

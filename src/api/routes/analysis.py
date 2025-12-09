@@ -14,6 +14,7 @@ from src.api.dependencies import (
     verify_api_key,
     get_assessment_analyzer
 )
+from src.api.utils import resolve_to_parcel_id
 from src.api.schemas.analysis import (
     AssessmentAnalysisResult,
     AnalyzePropertyRequest,
@@ -50,16 +51,20 @@ async def analyze_property(
     cache = get_cache_manager()
     engine = get_engine()
 
-    # Resolve parcel_id - the analyzer service works with parcel_id, not UUID
-    parcel_id = request.parcel_id
-    if not parcel_id and request.property_id:
-        # Look up parcel_id from UUID
-        parcel_id = _lookup_parcel_id(engine, request.property_id)
-
-    if not parcel_id:
+    # Resolve to parcel_id - the analyzer service works with parcel_id, not UUID
+    # Use centralized resolver that handles both UUID and parcel_id inputs
+    identifier = request.parcel_id or request.property_id
+    if not identifier:
         raise HTTPException(
             status_code=400,
-            detail="Either property_id or parcel_id must be provided, and property must exist"
+            detail="Either property_id or parcel_id must be provided"
+        )
+
+    parcel_id = resolve_to_parcel_id(engine, identifier)
+    if not parcel_id:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Property not found: {identifier}"
         )
 
     # Check cache if not forcing reanalysis
@@ -268,26 +273,5 @@ async def get_analysis_history(
         return APIResponse(data=history)
 
 
-# Helper functions
-def _lookup_property_id(engine, parcel_id: str) -> Optional[str]:
-    """Look up UUID from parcel_id."""
-    from sqlalchemy import text
-    with engine.connect() as conn:
-        result = conn.execute(
-            text("SELECT id FROM properties WHERE parcel_id = :parcel_id"),
-            {"parcel_id": parcel_id}
-        )
-        row = result.first()
-        return str(row[0]) if row else None
-
-
-def _lookup_parcel_id(engine, property_id: str) -> Optional[str]:
-    """Look up parcel_id from UUID."""
-    from sqlalchemy import text
-    with engine.connect() as conn:
-        result = conn.execute(
-            text("SELECT parcel_id FROM properties WHERE id::text = :property_id"),
-            {"property_id": property_id}
-        )
-        row = result.first()
-        return row[0] if row else None
+# Note: Property ID resolution now uses centralized utility:
+# from src.api.utils import resolve_to_parcel_id, resolve_to_uuid
