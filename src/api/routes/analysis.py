@@ -86,6 +86,14 @@ async def analyze_property(
                 detail="Property not found or analysis failed"
             )
 
+        # Save analysis to database so it shows up in property details
+        try:
+            analyzer.save_analysis(analysis)
+            logger.info(f"Saved analysis for property {parcel_id}")
+        except Exception as save_error:
+            logger.warning(f"Failed to save analysis to database: {save_error}")
+            # Continue - we still have the analysis results to return
+
         # Build response - map from AssessmentAnalysis dataclass to schema
         result = AssessmentAnalysisResult(
             property_id=str(analysis.property_id),
