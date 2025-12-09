@@ -32,6 +32,7 @@ class APISettings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:5173",
         "https://taxdown.vercel.app",
+        "https://taxdown-nu.vercel.app",
         "https://www.taxdown.com",
     ]
     cors_allow_credentials: bool = True
