@@ -81,9 +81,10 @@ async def analyze_property(
         analysis = analyzer.analyze_property(property_id=parcel_id)
 
         if not analysis:
+            # Analysis returned None - usually means no comparable properties found
             raise HTTPException(
-                status_code=404,
-                detail="Property not found or analysis failed"
+                status_code=422,
+                detail=f"Analysis could not be completed for property {parcel_id}. This usually means no comparable properties were found in the same area. Try a different property."
             )
 
         # Save analysis to database so it shows up in property details
@@ -124,7 +125,11 @@ async def analyze_property(
 
         return APIResponse(data=result)
 
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
+        logger.error(f"Analysis failed for {parcel_id}: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Analysis failed: {str(e)}"

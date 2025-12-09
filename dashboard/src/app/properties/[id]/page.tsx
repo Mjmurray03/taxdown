@@ -66,8 +66,10 @@ function PropertyDetailPageContent() {
       toast.success('Analysis completed successfully');
       queryClient.invalidateQueries({ queryKey: ['property', propertyId] });
     },
-    onError: (error) => {
-      toast.error('Analysis failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    onError: (error: any) => {
+      // Extract error message from Axios error response
+      const message = error?.response?.data?.detail || error?.message || 'Unknown error';
+      toast.error(message);
     },
   });
 

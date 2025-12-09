@@ -114,11 +114,13 @@ function PropertiesPageContent() {
   const analyzeMutation = useMutation({
     mutationFn: (propertyId: string) => analysisApi.analyze(propertyId, { force_refresh: true }),
     onSuccess: () => {
-      toast.success('Analysis started');
+      toast.success('Analysis completed');
       queryClient.invalidateQueries({ queryKey: ['properties'] });
     },
-    onError: (error) => {
-      toast.error('Analysis failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    onError: (error: any) => {
+      // Extract error message from Axios error response
+      const message = error?.response?.data?.detail || error?.message || 'Unknown error';
+      toast.error(message);
     },
   });
 
