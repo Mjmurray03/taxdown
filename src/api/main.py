@@ -205,15 +205,17 @@ def create_app() -> FastAPI:
     app.add_middleware(MetricsMiddleware)
 
     # Security middleware - Secure Headers
-    if settings.enable_secure_headers:
-        # Disable HSTS in development (no HTTPS)
-        include_hsts = settings.enable_hsts and not settings.is_development
-        app.add_middleware(
-            SecureHeadersMiddleware,
-            include_hsts=include_hsts,
-            exclude_paths=["/docs", "/redoc", "/openapi.json"],
-        )
-        logger.info("Secure headers middleware enabled", hsts=include_hsts)
+    # DISABLED: CSP headers on API responses can cause issues with cross-origin frontends
+    # The frontend (Next.js on Vercel) should set its own CSP headers
+    # if settings.enable_secure_headers:
+    #     # Disable HSTS in development (no HTTPS)
+    #     include_hsts = settings.enable_hsts and not settings.is_development
+    #     app.add_middleware(
+    #         SecureHeadersMiddleware,
+    #         include_hsts=include_hsts,
+    #         exclude_paths=["/docs", "/redoc", "/openapi.json"],
+    #     )
+    #     logger.info("Secure headers middleware enabled", hsts=include_hsts)
 
     # Security middleware - Audit Logging
     if settings.enable_audit_logging:
