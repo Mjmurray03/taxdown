@@ -179,6 +179,23 @@ async def search_properties(
         conditions.append("aa.fairness_score >= :min_score")
         params["min_score"] = request.min_fairness_score
 
+    if request.max_fairness_score:
+        conditions.append("aa.fairness_score <= :max_score")
+        params["max_score"] = request.max_fairness_score
+
+    # Handle assessment category filter
+    if request.assessment_category:
+        if request.assessment_category == "fairly_assessed":
+            conditions.append("aa.fairness_score <= 30")
+        elif request.assessment_category == "slightly_over":
+            conditions.append("aa.fairness_score > 30 AND aa.fairness_score <= 50")
+        elif request.assessment_category == "moderately_over":
+            conditions.append("aa.fairness_score > 50 AND aa.fairness_score <= 70")
+        elif request.assessment_category == "significantly_over":
+            conditions.append("aa.fairness_score > 70")
+        elif request.assessment_category == "unanalyzed":
+            conditions.append("aa.fairness_score IS NULL")
+
     if request.only_appeal_candidates:
         conditions.append("aa.recommended_action = 'APPEAL'")
 
@@ -197,6 +214,8 @@ async def search_properties(
     # Determine if we need the analysis join (only for fairness-related filters/sorting)
     needs_analysis_join = (
         request.min_fairness_score is not None or
+        request.max_fairness_score is not None or
+        request.assessment_category is not None or
         request.only_appeal_candidates or
         request.sort_by == "fairness_score"
     )
@@ -367,6 +386,79 @@ async def get_property_by_parcel(
     Get property by parcel ID (convenience endpoint).
     """
     return await get_property(parcel_id, include_analysis=True, api_key=api_key)
+
+
+@router.get("/stats/assessment-distribution")
+async def get_assessment_distribution(
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get distribution of properties by assessment fairness category.
+
+    Categories based on fairness score:
+    - fairly_assessed: 0-30 (fair or under-assessed)
+    - slightly_over: 31-50 (slightly over-assessed)
+    - moderately_over: 51-70 (moderately over-assessed)
+    - significantly_over: 71-100 (significantly over-assessed)
+
+    Returns counts for each category plus total analyzed properties.
+    """
+    cache = get_cache_manager()
+    cache_key_str = "taxdown:stats:assessment_distribution"
+
+    cached_data = cache.get(cache_key_str)
+    if cached_data is not None:
+        logger.debug("Cache hit for assessment distribution")
+        return cached_data
+
+    engine = get_engine()
+
+    with engine.connect() as conn:
+        # Get counts by fairness category from analyzed properties
+        query = text("""
+            WITH latest_analyses AS (
+                SELECT DISTINCT ON (property_id)
+                    property_id,
+                    fairness_score,
+                    recommended_action,
+                    estimated_savings_cents
+                FROM assessment_analyses
+                ORDER BY property_id, analysis_date DESC
+            )
+            SELECT
+                COUNT(*) FILTER (WHERE fairness_score <= 30) as fairly_assessed,
+                COUNT(*) FILTER (WHERE fairness_score > 30 AND fairness_score <= 50) as slightly_over,
+                COUNT(*) FILTER (WHERE fairness_score > 50 AND fairness_score <= 70) as moderately_over,
+                COUNT(*) FILTER (WHERE fairness_score > 70) as significantly_over,
+                COUNT(*) as total_analyzed,
+                COUNT(*) FILTER (WHERE recommended_action = 'APPEAL') as appeal_candidates,
+                COALESCE(SUM(estimated_savings_cents) FILTER (WHERE recommended_action = 'APPEAL'), 0) as total_potential_savings_cents
+            FROM latest_analyses
+        """)
+
+        result = conn.execute(query)
+        row = result.mappings().first()
+
+        # Also get total properties count (including unanalyzed)
+        total_query = text("SELECT COUNT(*) FROM properties WHERE parcel_id IS NOT NULL")
+        total_properties = conn.execute(total_query).scalar()
+
+        response = {
+            "fairly_assessed": row["fairly_assessed"] or 0,
+            "slightly_over": row["slightly_over"] or 0,
+            "moderately_over": row["moderately_over"] or 0,
+            "significantly_over": row["significantly_over"] or 0,
+            "total_analyzed": row["total_analyzed"] or 0,
+            "total_properties": total_properties or 0,
+            "unanalyzed": (total_properties or 0) - (row["total_analyzed"] or 0),
+            "appeal_candidates": row["appeal_candidates"] or 0,
+            "total_potential_savings": cents_to_dollars(row["total_potential_savings_cents"]) or 0
+        }
+
+        # Cache for 5 minutes
+        cache.set(cache_key_str, response, 300)
+
+        return response
 
 
 # Helper functions

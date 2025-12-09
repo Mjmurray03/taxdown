@@ -46,7 +46,7 @@ import {
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
-import { propertyApi, analysisApi, PropertySearchParams, PropertySearchResponse, AddressSuggestion } from '@/lib/api';
+import { propertyApi, analysisApi, PropertySearchParams, PropertySearchResponse, AddressSuggestion, AssessmentCategory } from '@/lib/api';
 import { AddToPortfolioDialog } from '@/components/portfolio/add-to-portfolio-dialog';
 import { toast } from 'sonner';
 import { useDebounce } from '@/lib/hooks';
@@ -65,6 +65,9 @@ function PropertiesPageContent() {
   const [pageSize] = useState(20);
   const [onlyAppealCandidates, setOnlyAppealCandidates] = useState(
     searchParams.get('filter') === 'appeal'
+  );
+  const [assessmentCategory, setAssessmentCategory] = useState<AssessmentCategory | ''>(
+    (searchParams.get('assessment_category') as AssessmentCategory) || ''
   );
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState<SortField>('address');
@@ -87,6 +90,7 @@ function PropertiesPageContent() {
     page,
     page_size: pageSize,
     only_appeal_candidates: onlyAppealCandidates,
+    assessment_category: assessmentCategory || undefined,
     sort_by: sortBy,
     sort_order: sortOrder,
     min_value: minValue ? parseInt(minValue) : undefined,
@@ -150,12 +154,15 @@ function PropertiesPageContent() {
   const handleResetFilters = () => {
     setSearchQuery('');
     setOnlyAppealCandidates(false);
+    setAssessmentCategory('');
     setMinValue('');
     setMaxValue('');
     setCity('');
-    setSortBy('value');
-    setSortOrder('desc');
+    setSortBy('address');
+    setSortOrder('asc');
     setPage(1);
+    // Update URL
+    router.push('/properties');
   };
 
   // Handle apply filters
@@ -210,10 +217,23 @@ function PropertiesPageContent() {
   // Count active filters
   const activeFilterCount = [
     onlyAppealCandidates,
+    assessmentCategory,
     minValue,
     maxValue,
     city,
   ].filter(Boolean).length;
+
+  // Get label for assessment category
+  const getAssessmentCategoryLabel = (category: AssessmentCategory | '') => {
+    switch (category) {
+      case 'fairly_assessed': return 'Fairly Assessed';
+      case 'slightly_over': return 'Slightly Over';
+      case 'moderately_over': return 'Moderately Over';
+      case 'significantly_over': return 'Significantly Over';
+      case 'unanalyzed': return 'Not Analyzed';
+      default: return 'All Assessment Levels';
+    }
+  };
 
   return (
     <MainLayout>
@@ -283,20 +303,54 @@ function PropertiesPageContent() {
         </div>
 
         {/* Filter Bar */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <Select
-            value={onlyAppealCandidates ? 'appeal' : 'all'}
+            value={assessmentCategory || 'all'}
             onValueChange={(value) => {
-              setOnlyAppealCandidates(value === 'appeal');
+              if (value === 'all') {
+                setAssessmentCategory('');
+              } else {
+                setAssessmentCategory(value as AssessmentCategory);
+              }
+              setOnlyAppealCandidates(false);
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
+            <SelectTrigger className="w-[200px]">
+              <SelectValue>{getAssessmentCategoryLabel(assessmentCategory)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Properties</SelectItem>
-              <SelectItem value="appeal">Appeal Candidates</SelectItem>
+              <SelectItem value="all">All Assessment Levels</SelectItem>
+              <SelectItem value="fairly_assessed">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[#22C55E]" />
+                  Fairly Assessed (0-30)
+                </span>
+              </SelectItem>
+              <SelectItem value="slightly_over">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[#F59E0B]" />
+                  Slightly Over (31-50)
+                </span>
+              </SelectItem>
+              <SelectItem value="moderately_over">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[#F97316]" />
+                  Moderately Over (51-70)
+                </span>
+              </SelectItem>
+              <SelectItem value="significantly_over">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[#DC2626]" />
+                  Significantly Over (71-100)
+                </span>
+              </SelectItem>
+              <SelectItem value="unanalyzed">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[#D4D4D8]" />
+                  Not Yet Analyzed
+                </span>
+              </SelectItem>
             </SelectContent>
           </Select>
 
@@ -332,7 +386,8 @@ function PropertiesPageContent() {
 
           {activeFilterCount > 0 && (
             <Button variant="ghost" onClick={handleResetFilters}>
-              Clear Filters
+              <X className="h-4 w-4 mr-1" />
+              Clear Filters ({activeFilterCount})
             </Button>
           )}
 

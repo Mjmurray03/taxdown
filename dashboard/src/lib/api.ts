@@ -50,6 +50,25 @@ export interface PaginatedResponse<T> {
 }
 
 // Property Types
+export type AssessmentCategory =
+  | 'fairly_assessed'      // 0-30
+  | 'slightly_over'        // 31-50
+  | 'moderately_over'      // 51-70
+  | 'significantly_over'   // 71-100
+  | 'unanalyzed';          // No analysis
+
+export interface AssessmentDistribution {
+  fairly_assessed: number;
+  slightly_over: number;
+  moderately_over: number;
+  significantly_over: number;
+  total_analyzed: number;
+  total_properties: number;
+  unanalyzed: number;
+  appeal_candidates: number;
+  total_potential_savings: number;
+}
+
 export interface PropertySearchParams {
   query?: string;
   parcel_id?: string;
@@ -57,6 +76,9 @@ export interface PropertySearchParams {
   subdivision?: string;
   min_value?: number;
   max_value?: number;
+  min_fairness_score?: number;
+  max_fairness_score?: number;
+  assessment_category?: AssessmentCategory;
   only_appeal_candidates?: boolean;
   page?: number;
   page_size?: number;
@@ -243,6 +265,11 @@ export const propertyApi = {
     const response = await api.get<AddressSuggestion[]>('/properties/autocomplete/address', {
       params: { q: query }
     });
+    return response.data;
+  },
+
+  getAssessmentDistribution: async () => {
+    const response = await api.get<AssessmentDistribution>('/properties/stats/assessment-distribution');
     return response.data;
   }
 };

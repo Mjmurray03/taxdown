@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowRight } from 'lucide-react';
-import { propertyApi, portfolioApi, PropertySearchResponse, DashboardData, APIResponse } from '@/lib/api';
+import { propertyApi, portfolioApi, PropertySearchResponse, DashboardData, APIResponse, AssessmentDistribution } from '@/lib/api';
 import { useLocalStorage } from '@/lib/hooks';
 
 export function DashboardPage() {
@@ -37,7 +37,13 @@ export function DashboardPage() {
     queryFn: () => propertyApi.search({ only_appeal_candidates: true, page: 1, page_size: 5 }),
   });
 
-  const isLoading = loadingDashboard || loadingAll || loadingCandidates;
+  // Fetch assessment distribution stats
+  const { data: assessmentStats, isLoading: loadingStats } = useQuery<AssessmentDistribution>({
+    queryKey: ['assessment-distribution'],
+    queryFn: () => propertyApi.getAssessmentDistribution(),
+  });
+
+  const isLoading = loadingDashboard || loadingAll || loadingCandidates || loadingStats;
 
   const formatCurrency = (value: number | null | undefined) => {
     if (value === null || value === undefined) return '$0';
@@ -224,59 +230,101 @@ export function DashboardPage() {
         <Card>
           <CardHeader className="pb-4 border-b border-[#E4E4E7]">
             <CardTitle className="text-xl font-semibold">Assessment Overview</CardTitle>
-            <CardDescription className="text-xs text-[#71717A]">Last 30 days</CardDescription>
+            <CardDescription className="text-xs text-[#71717A]">
+              {assessmentStats ? `${formatNumber(assessmentStats.total_analyzed)} analyzed` : 'Loading...'}
+            </CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
-            <div className="space-y-4">
-              {/* Assessment distribution */}
-              <div className="space-y-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-sm text-[#09090B]">Fairly Assessed</p>
-                    <p className="text-sm font-medium tabular-nums text-[#09090B]">142,891</p>
+            {loadingStats ? (
+              <div className="space-y-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i}>
+                    <div className="flex justify-between mb-1.5">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                    <Skeleton className="h-2 w-full" />
                   </div>
-                  <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#D4D4D8] rounded-full" style={{ width: '82%' }} />
-                  </div>
+                ))}
+              </div>
+            ) : assessmentStats ? (
+              <div className="space-y-4">
+                {/* Assessment distribution */}
+                <div className="space-y-3">
+                  <Link href="/properties?assessment_category=fairly_assessed" className="block hover:bg-[#FAFAF9] -mx-2 px-2 py-1 rounded transition-colors">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-sm text-[#09090B]">Fairly Assessed</p>
+                      <p className="text-sm font-medium tabular-nums text-[#09090B]">{formatNumber(assessmentStats.fairly_assessed)}</p>
+                    </div>
+                    <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#22C55E] rounded-full transition-all"
+                        style={{ width: `${assessmentStats.total_analyzed > 0 ? (assessmentStats.fairly_assessed / assessmentStats.total_analyzed) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </Link>
+
+                  <Link href="/properties?assessment_category=slightly_over" className="block hover:bg-[#FAFAF9] -mx-2 px-2 py-1 rounded transition-colors">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-sm text-[#09090B]">Slightly Over</p>
+                      <p className="text-sm font-medium tabular-nums text-[#09090B]">{formatNumber(assessmentStats.slightly_over)}</p>
+                    </div>
+                    <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#F59E0B] rounded-full transition-all"
+                        style={{ width: `${assessmentStats.total_analyzed > 0 ? (assessmentStats.slightly_over / assessmentStats.total_analyzed) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </Link>
+
+                  <Link href="/properties?assessment_category=moderately_over" className="block hover:bg-[#FAFAF9] -mx-2 px-2 py-1 rounded transition-colors">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-sm text-[#09090B]">Moderately Over</p>
+                      <p className="text-sm font-medium tabular-nums text-[#09090B]">{formatNumber(assessmentStats.moderately_over)}</p>
+                    </div>
+                    <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#F97316] rounded-full transition-all"
+                        style={{ width: `${assessmentStats.total_analyzed > 0 ? (assessmentStats.moderately_over / assessmentStats.total_analyzed) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </Link>
+
+                  <Link href="/properties?assessment_category=significantly_over" className="block hover:bg-[#FAFAF9] -mx-2 px-2 py-1 rounded transition-colors">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-sm text-[#09090B]">Significantly Over</p>
+                      <p className="text-sm font-medium tabular-nums text-[#09090B]">{formatNumber(assessmentStats.significantly_over)}</p>
+                    </div>
+                    <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#DC2626] rounded-full transition-all"
+                        style={{ width: `${assessmentStats.total_analyzed > 0 ? (assessmentStats.significantly_over / assessmentStats.total_analyzed) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </Link>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-sm text-[#09090B]">Slightly Over</p>
-                    <p className="text-sm font-medium tabular-nums text-[#09090B]">18,423</p>
-                  </div>
-                  <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#A1A1AA] rounded-full" style={{ width: '11%' }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-sm text-[#09090B]">Moderately Over</p>
-                    <p className="text-sm font-medium tabular-nums text-[#09090B]">8,942</p>
-                  </div>
-                  <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#71717A] rounded-full" style={{ width: '5%' }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-sm text-[#09090B]">Significantly Over</p>
-                    <p className="text-sm font-medium tabular-nums text-[#09090B]">3,487</p>
-                  </div>
-                  <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#18181B] rounded-full" style={{ width: '2%' }} />
-                  </div>
+                <div className="pt-4 border-t border-[#E4E4E7] space-y-2">
+                  <p className="text-sm text-[#71717A]">
+                    <span className="font-medium text-[#09090B]">{formatNumber(assessmentStats.appeal_candidates)}</span> properties may benefit from appeal
+                  </p>
+                  {assessmentStats.total_potential_savings > 0 && (
+                    <p className="text-sm text-[#166534]">
+                      <span className="font-medium">{formatCurrency(assessmentStats.total_potential_savings)}</span> potential annual savings
+                    </p>
+                  )}
+                  {assessmentStats.unanalyzed > 0 && (
+                    <Link href="/properties?assessment_category=unanalyzed" className="text-xs text-[#71717A] hover:text-[#09090B] transition-colors">
+                      {formatNumber(assessmentStats.unanalyzed)} properties not yet analyzed →
+                    </Link>
+                  )}
                 </div>
               </div>
-
-              <div className="pt-4 border-t border-[#E4E4E7]">
-                <p className="text-sm text-[#71717A]">
-                  {formatNumber(appealCandidates?.total_count || 0)} properties may benefit from appeal
-                </p>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-sm text-[#71717A]">No assessment data available</p>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

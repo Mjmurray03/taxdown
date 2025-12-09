@@ -17,6 +17,15 @@ class PropertyType(str, Enum):
     VACANT = "VAC"
 
 
+class AssessmentCategory(str, Enum):
+    """Assessment fairness categories based on fairness score."""
+    FAIRLY_ASSESSED = "fairly_assessed"  # 0-30
+    SLIGHTLY_OVER = "slightly_over"      # 31-50
+    MODERATELY_OVER = "moderately_over"  # 51-70
+    SIGNIFICANTLY_OVER = "significantly_over"  # 71-100
+    UNANALYZED = "unanalyzed"            # No analysis yet
+
+
 class PropertyBase(BaseModel):
     """Base property fields."""
     parcel_id: str
@@ -96,6 +105,11 @@ class PropertySearchRequest(BaseModel):
 
     # Assessment filters
     min_fairness_score: Optional[int] = Field(None, ge=0, le=100)
+    max_fairness_score: Optional[int] = Field(None, ge=0, le=100)
+    assessment_category: Optional[str] = Field(
+        None,
+        description="Filter by assessment category: fairly_assessed (0-30), slightly_over (31-50), moderately_over (51-70), significantly_over (71-100), unanalyzed"
+    )
     only_appeal_candidates: bool = False
 
     # Pagination
