@@ -116,16 +116,34 @@ export interface AddressSuggestion {
 }
 
 // Analysis Types
-export interface AnalysisResult {
-  id: string;
+export interface ComparableProperty {
   property_id: string;
+  parcel_id: string;
+  address: string | null;
+  total_value: number | null;
+  assessed_value: number | null;
+  assessment_ratio: number | null;
+  distance_miles: number | null;
+  similarity_score: number | null;
+}
+
+export interface AnalysisResult {
+  property_id: string;
+  parcel_id: string;
+  address: string | null;
+  current_market_value: number | null;
+  current_assessed_value: number | null;
+  current_assessment_ratio: number | null;
   fairness_score: number;
   confidence_level: number;
   recommended_action: 'APPEAL' | 'MONITOR' | 'NONE';
-  fair_assessed_value: number;
-  estimated_savings: number;
+  fair_assessed_value: number | null;
+  estimated_annual_savings: number | null;
   comparable_count: number;
+  median_comparable_ratio: number | null;
+  comparables: ComparableProperty[] | null;
   analysis_date: string;
+  mill_rate_used: number;
 }
 
 export interface AnalyzeOptions {

@@ -74,6 +74,9 @@ class AssessmentAnalysis:
     comparable_count: int
     median_comparable_ratio: float
 
+    # Actual comparable properties used in analysis
+    comparables: List[Any] = None  # List of ComparableProperty objects
+
     # Savings estimate from SavingsEstimator
     estimated_annual_savings_cents: int
     estimated_five_year_savings_cents: int
@@ -294,6 +297,7 @@ class AssessmentAnalyzer:
                 interpretation=fairness_result.interpretation,
                 comparable_count=len(comparables),
                 median_comparable_ratio=fairness_result.median_ratio,
+                comparables=comparables,  # Include actual comparable properties
                 estimated_annual_savings_cents=savings_estimate.annual_savings_cents,
                 estimated_five_year_savings_cents=savings_estimate.five_year_savings_cents,
                 recommended_action=recommended_action,

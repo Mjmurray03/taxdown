@@ -95,6 +95,23 @@ async def analyze_property(
             logger.warning(f"Failed to save analysis to database: {save_error}")
             # Continue - we still have the analysis results to return
 
+        # Build comparables list if requested and available
+        comparables_list = None
+        if request.include_comparables and analysis.comparables:
+            comparables_list = [
+                ComparablePropertySchema(
+                    property_id=comp.id,
+                    parcel_id=comp.parcel_id,
+                    address=comp.address,
+                    total_value=cents_to_dollars(comp.total_val_cents),
+                    assessed_value=cents_to_dollars(comp.assess_val_cents),
+                    assessment_ratio=comp.assessment_ratio,
+                    distance_miles=comp.distance_miles,
+                    similarity_score=comp.similarity_score
+                )
+                for comp in analysis.comparables[:10]  # Limit to top 10 most similar
+            ]
+
         # Build response - map from AssessmentAnalysis dataclass to schema
         result = AssessmentAnalysisResult(
             property_id=str(analysis.property_id),
@@ -113,6 +130,7 @@ async def analyze_property(
             comparable_count=analysis.comparable_count,
             median_comparable_ratio=analysis.median_comparable_ratio,
             percentile_rank=None,  # Not provided by current analyzer
+            comparables=comparables_list,
             analysis_date=analysis.analysis_date,
             mill_rate_used=request.mill_rate
         )

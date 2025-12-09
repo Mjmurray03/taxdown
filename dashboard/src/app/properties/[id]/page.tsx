@@ -25,6 +25,7 @@ import {
   analysisApi,
   appealApi,
   PropertyDetail,
+  AnalysisResult,
   APIResponse,
 } from '@/lib/api';
 import { AddToPortfolioDialog } from '@/components/portfolio/add-to-portfolio-dialog';
@@ -46,6 +47,7 @@ function PropertyDetailPageContent() {
   const [portfolioDialogOpen, setPortfolioDialogOpen] = useState(false);
   const [copied, copyToClipboard] = useCopyToClipboard();
   const download = useDownload();
+  const [analysisData, setAnalysisData] = useState<AnalysisResult | null>(null);
 
   // Fetch property data
   const {
@@ -62,8 +64,12 @@ function PropertyDetailPageContent() {
   // Analysis mutation
   const analyzeMutation = useMutation({
     mutationFn: () => analysisApi.analyze(propertyId, { force_refresh: true, include_comparables: true }),
-    onSuccess: (data) => {
+    onSuccess: (response) => {
       toast.success('Analysis completed successfully');
+      // Store the analysis result with comparables
+      if (response?.data) {
+        setAnalysisData(response.data);
+      }
       queryClient.invalidateQueries({ queryKey: ['property', propertyId] });
     },
     onError: (error: any) => {
@@ -291,7 +297,7 @@ function PropertyDetailPageContent() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="analysis" className="space-y-0">
+          <TabsContent value="analysis" className="space-y-6">
             <Card>
               <CardHeader className="pb-4 border-b border-[#E4E4E7]">
                 <div className="flex items-center justify-between">
@@ -306,35 +312,35 @@ function PropertyDetailPageContent() {
                     onClick={() => analyzeMutation.mutate()}
                     disabled={analyzeMutation.isPending}
                   >
-                    {property.fairness_score ? 'Re-Analyze' : 'Run Analysis'}
+                    {analyzeMutation.isPending ? 'Analyzing...' : (property.fairness_score || analysisData ? 'Re-Analyze' : 'Run Analysis')}
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="pt-6">
-                {property.fairness_score ? (
+                {(property.fairness_score || analysisData) ? (
                   <div className="space-y-6">
                     <div className="grid md:grid-cols-3 gap-4">
                       <div className="text-center p-6 bg-[#FAFAF9] rounded-lg">
                         <div className="text-4xl font-semibold text-[#09090B] tabular-nums">
-                          {property.fairness_score}%
+                          {analysisData?.fairness_score ?? property.fairness_score}%
                         </div>
                         <div className="text-xs text-[#71717A] mt-2 uppercase tracking-wider">Fairness Score</div>
                       </div>
                       <div className="text-center p-6 bg-[#FAFAF9] rounded-lg">
                         <div className="text-4xl font-semibold text-[#166534] tabular-nums">
-                          {formatCurrency(property.estimated_savings)}
+                          {formatCurrency(analysisData?.estimated_annual_savings ?? property.estimated_savings)}
                         </div>
                         <div className="text-xs text-[#71717A] mt-2 uppercase tracking-wider">Potential Savings</div>
                       </div>
                       <div className="text-center p-6 bg-[#FAFAF9] rounded-lg">
                         <div className="text-2xl font-semibold text-[#09090B]">
-                          {property.recommended_action || 'N/A'}
+                          {analysisData?.recommended_action ?? property.recommended_action ?? 'N/A'}
                         </div>
                         <div className="text-xs text-[#71717A] mt-2 uppercase tracking-wider">Recommendation</div>
                       </div>
                     </div>
 
-                    {property.fairness_score >= 50 && (
+                    {(analysisData?.fairness_score ?? property.fairness_score ?? 0) >= 50 && (
                       <div className="p-6 bg-[#DCFCE7] border border-[#166534]/20 rounded-lg">
                         <div className="flex items-center gap-3 mb-2">
                           <TrendingUp className="h-5 w-5 text-[#166534]" />
@@ -356,9 +362,9 @@ function PropertyDetailPageContent() {
                       </div>
                     )}
 
-                    {property.last_analyzed && (
+                    {(property.last_analyzed || analysisData?.analysis_date) && (
                       <p className="text-xs text-[#71717A]">
-                        Last analyzed {new Date(property.last_analyzed).toLocaleDateString()}
+                        Last analyzed {new Date(analysisData?.analysis_date ?? property.last_analyzed!).toLocaleDateString()}
                       </p>
                     )}
                   </div>
@@ -374,12 +380,89 @@ function PropertyDetailPageContent() {
                       disabled={analyzeMutation.isPending}
                       className="mt-6"
                     >
-                      Run Analysis
+                      {analyzeMutation.isPending ? 'Analyzing...' : 'Run Analysis'}
                     </Button>
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            {/* Comparable Properties Section */}
+            {analysisData?.comparables && analysisData.comparables.length > 0 && (
+              <Card>
+                <CardHeader className="pb-4 border-b border-[#E4E4E7]">
+                  <CardTitle className="text-xl font-semibold">Comparable Properties</CardTitle>
+                  <CardDescription className="text-xs text-[#71717A] mt-1">
+                    {analysisData.comparable_count} similar properties used in the fairness analysis
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="space-y-3">
+                    {analysisData.comparables.map((comp, index) => (
+                      <Link
+                        key={comp.property_id}
+                        href={`/properties/${comp.property_id}`}
+                        className="block p-4 border border-[#E4E4E7] rounded-lg hover:border-[#18181B] hover:bg-[#FAFAF9] transition-all"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-[#71717A] bg-[#F4F4F5] px-2 py-0.5 rounded">
+                                #{index + 1}
+                              </span>
+                              <p className="font-medium text-[#09090B]">
+                                {comp.address || 'Address not available'}
+                              </p>
+                            </div>
+                            <p className="text-xs text-[#71717A] mt-1">
+                              Parcel: {comp.parcel_id}
+                              {comp.distance_miles !== null && comp.distance_miles > 0 && (
+                                <span className="ml-2">| {comp.distance_miles.toFixed(2)} miles away</span>
+                              )}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="flex items-center gap-4">
+                              <div>
+                                <p className="text-sm font-medium text-[#09090B] tabular-nums">
+                                  {formatCurrency(comp.total_value)}
+                                </p>
+                                <p className="text-xs text-[#71717A]">Market Value</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-[#09090B] tabular-nums">
+                                  {comp.assessment_ratio?.toFixed(1)}%
+                                </p>
+                                <p className="text-xs text-[#71717A]">Ratio</p>
+                              </div>
+                              {comp.similarity_score !== null && (
+                                <div>
+                                  <Badge variant={comp.similarity_score >= 80 ? 'success' : comp.similarity_score >= 60 ? 'default' : 'secondary'}>
+                                    {comp.similarity_score.toFixed(0)}% match
+                                  </Badge>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+
+                  {analysisData.median_comparable_ratio && (
+                    <div className="mt-6 p-4 bg-[#FAFAF9] rounded-lg">
+                      <p className="text-sm text-[#71717A]">
+                        <span className="font-medium text-[#09090B]">Median Assessment Ratio:</span>{' '}
+                        {(analysisData.median_comparable_ratio * 100).toFixed(1)}%
+                      </p>
+                      <p className="text-xs text-[#71717A] mt-1">
+                        This property's ratio: {((analysisData.current_assessment_ratio ?? 0) * 100).toFixed(1)}%
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="appeal" className="space-y-0">
