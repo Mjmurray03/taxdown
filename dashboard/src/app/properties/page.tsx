@@ -67,8 +67,8 @@ function PropertiesPageContent() {
     searchParams.get('filter') === 'appeal'
   );
   const [showFilters, setShowFilters] = useState(false);
-  const [sortBy, setSortBy] = useState<SortField>('value');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortBy, setSortBy] = useState<SortField>('address');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [minValue, setMinValue] = useState('');
   const [maxValue, setMaxValue] = useState('');
   const [city, setCity] = useState('');

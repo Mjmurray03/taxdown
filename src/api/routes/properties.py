@@ -193,41 +193,79 @@ async def search_properties(
 
     sort_dir = "DESC" if request.sort_order == "desc" else "ASC"
 
+    # Determine if we need the analysis join (only for fairness-related filters/sorting)
+    needs_analysis_join = (
+        request.min_fairness_score is not None or
+        request.only_appeal_candidates or
+        request.sort_by == "fairness_score"
+    )
+
     with engine.connect() as conn:
-        # Count total
-        count_query = text(f"""
-            SELECT COUNT(*) FROM properties p
-            LEFT JOIN LATERAL (
-                SELECT * FROM assessment_analyses
-                WHERE property_id = p.id
-                ORDER BY analysis_date DESC LIMIT 1
-            ) aa ON true
-            WHERE {where_clause}
-        """)
-        total_count = conn.execute(count_query, params).scalar()
+        try:
+            # Set query timeout to 10 seconds
+            conn.execute(text("SET statement_timeout = '10s'"))
 
-        # Fetch page
-        offset = (request.page - 1) * request.page_size
-        params["limit"] = request.page_size
-        params["offset"] = offset
+            if needs_analysis_join:
+                # Full query with analysis join
+                count_query = text(f"""
+                    SELECT COUNT(*) FROM properties p
+                    LEFT JOIN LATERAL (
+                        SELECT * FROM assessment_analyses
+                        WHERE property_id = p.id
+                        ORDER BY analysis_date DESC LIMIT 1
+                    ) aa ON true
+                    WHERE {where_clause}
+                """)
+            else:
+                # Optimized count without analysis join (much faster)
+                count_query = text(f"""
+                    SELECT COUNT(*) FROM properties p
+                    WHERE {where_clause}
+                """)
 
-        data_query = text(f"""
-            SELECT p.id, p.parcel_id, p.ph_add, p.city,
-                   p.ow_name, p.total_val_cents, p.assess_val_cents,
-                   p.type_, p.subdivname,
-                   aa.fairness_score, aa.recommended_action
-            FROM properties p
-            LEFT JOIN LATERAL (
-                SELECT * FROM assessment_analyses
-                WHERE property_id = p.id
-                ORDER BY analysis_date DESC LIMIT 1
-            ) aa ON true
-            WHERE {where_clause}
-            ORDER BY {sort_column} {sort_dir} NULLS LAST
-            LIMIT :limit OFFSET :offset
-        """)
+            total_count = conn.execute(count_query, params).scalar()
 
-        results = conn.execute(data_query, params)
+            # Fetch page
+            offset = (request.page - 1) * request.page_size
+            params["limit"] = request.page_size
+            params["offset"] = offset
+
+            if needs_analysis_join:
+                data_query = text(f"""
+                    SELECT p.id, p.parcel_id, p.ph_add, p.city,
+                           p.ow_name, p.total_val_cents, p.assess_val_cents,
+                           p.type_, p.subdivname,
+                           aa.fairness_score, aa.recommended_action
+                    FROM properties p
+                    LEFT JOIN LATERAL (
+                        SELECT * FROM assessment_analyses
+                        WHERE property_id = p.id
+                        ORDER BY analysis_date DESC LIMIT 1
+                    ) aa ON true
+                    WHERE {where_clause}
+                    ORDER BY {sort_column} {sort_dir} NULLS LAST
+                    LIMIT :limit OFFSET :offset
+                """)
+            else:
+                # Optimized query without analysis join
+                data_query = text(f"""
+                    SELECT p.id, p.parcel_id, p.ph_add, p.city,
+                           p.ow_name, p.total_val_cents, p.assess_val_cents,
+                           p.type_, p.subdivname,
+                           NULL as fairness_score, NULL as recommended_action
+                    FROM properties p
+                    WHERE {where_clause}
+                    ORDER BY {sort_column} {sort_dir} NULLS LAST
+                    LIMIT :limit OFFSET :offset
+                """)
+
+            results = conn.execute(data_query, params)
+        except Exception as e:
+            logger.error(f"Database query failed: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Database query failed. Try a different sort option or add filters to narrow results."
+            )
 
         properties = []
         for row in results.mappings():
