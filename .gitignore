@@ -13,8 +13,10 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
+# Don't ignore dashboard src/lib
+!dashboard/src/lib/
 parts/
 sdist/
 var/
@@ -41,3 +43,6 @@ env/
 .DS_Store
 Thumbs.db
 nul
+
+.vercel
+.env*.local
