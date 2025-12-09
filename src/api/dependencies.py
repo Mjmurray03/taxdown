@@ -30,8 +30,13 @@ def get_engine():
     global _engine
     if _engine is None:
         settings = get_settings()
+        # Convert postgres:// to postgresql:// for SQLAlchemy 2.x compatibility
+        # Railway provides postgres:// but SQLAlchemy 2.x requires postgresql://
+        database_url = settings.database_url
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
         _engine = create_engine(
-            settings.database_url,
+            database_url,
             pool_size=settings.database_pool_size,
             max_overflow=settings.database_max_overflow,
         )
