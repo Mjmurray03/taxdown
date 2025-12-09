@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowRight } from 'lucide-react';
 import { propertyApi, portfolioApi, PropertySearchResponse, DashboardData, APIResponse, AssessmentDistribution } from '@/lib/api';
 import { useLocalStorage } from '@/lib/hooks';
+import { APPEAL_DEADLINE, getDaysUntilDeadline, getFormattedDeadline } from '@/lib/config';
 
 export function DashboardPage() {
   // Get selected portfolio from local storage
@@ -59,10 +60,9 @@ export function DashboardPage() {
     return new Intl.NumberFormat('en-US').format(value);
   };
 
-  // Calculate days until deadline (March 1, 2026)
-  const deadline = new Date('2026-03-01');
+  // Calculate days until deadline from config
+  const daysUntilDeadline = getDaysUntilDeadline();
   const today = new Date();
-  const daysUntilDeadline = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
   return (
     <div className="space-y-8">
@@ -352,7 +352,7 @@ export function DashboardPage() {
                   Appeal deadline: <span className="font-medium">
                     {dashboardData?.appeal_deadline
                       ? format(new Date(dashboardData.appeal_deadline), 'MMMM d, yyyy')
-                      : 'March 1, 2026'}
+                      : getFormattedDeadline()}
                   </span>
                 </p>
               </div>

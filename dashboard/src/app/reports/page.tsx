@@ -359,7 +359,7 @@ export default function ReportsPage() {
         </Card>
 
         {/* Quick Stats */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Reports Generated</CardTitle>
@@ -371,20 +371,11 @@ export default function ReportsPage() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Scheduled Reports</CardTitle>
+              <CardTitle className="text-sm font-medium">Portfolios Available</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">Active schedules</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Data Updated</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">Just now</div>
-              <p className="text-xs text-muted-foreground">Last sync</p>
+              <div className="text-2xl font-bold">{portfolios.length}</div>
+              <p className="text-xs text-muted-foreground">For report generation</p>
             </CardContent>
           </Card>
         </div>

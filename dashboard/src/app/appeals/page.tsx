@@ -54,6 +54,7 @@ import {
 import { appealApi, AppealListItem, AppealPackage, APIResponse } from '@/lib/api';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useDownload, useCopyToClipboard } from '@/lib/hooks';
+import { getDaysUntilDeadline, getFormattedDeadline } from '@/lib/config';
 import { toast } from 'sonner';
 
 export default function AppealsPage() {
@@ -172,10 +173,8 @@ export default function AppealsPage() {
     }
   };
 
-  // Calculate days until deadline
-  const deadline = new Date('2026-03-01');
-  const today = new Date();
-  const daysUntilDeadline = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  // Calculate days until deadline from config
+  const daysUntilDeadline = getDaysUntilDeadline();
 
   return (
     <MainLayout>
@@ -189,7 +188,7 @@ export default function AppealsPage() {
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="flex items-center gap-1">
               <Calendar className="h-3 w-3" />
-              Filing Deadline: March 1, 2026
+              Filing Deadline: {getFormattedDeadline()}
             </Badge>
             <Badge variant={daysUntilDeadline < 30 ? 'error' : 'secondary'}>
               {daysUntilDeadline} days left
@@ -206,7 +205,7 @@ export default function AppealsPage() {
                 <div>
                   <p className="font-medium text-yellow-800">Filing Deadline Approaching</p>
                   <p className="text-sm text-yellow-700">
-                    Submit your appeals before March 1, 2026 to be considered for this tax year.
+                    Submit your appeals before {getFormattedDeadline()} to be considered for this tax year.
                   </p>
                 </div>
               </div>
