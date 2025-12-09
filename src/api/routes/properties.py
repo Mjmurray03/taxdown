@@ -139,7 +139,8 @@ async def search_properties(
     engine = get_engine()
 
     # Build dynamic query
-    conditions = ["1=1"]
+    # Always require parcel_id to be non-null (data quality filter)
+    conditions = ["p.parcel_id IS NOT NULL"]
     params = {}
 
     if request.parcel_id:
