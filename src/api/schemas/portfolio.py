@@ -52,6 +52,7 @@ class UserResponse(BaseModel):
 
 # Portfolio schemas
 class PortfolioCreate(BaseModel):
+    user_id: str = Field(..., description="User ID who owns the portfolio")
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = None
     default_mill_rate: float = Field(65.0, ge=0)

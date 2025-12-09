@@ -230,6 +230,9 @@ async def generate_property_analysis_report(
     api_key: str = Depends(verify_api_key),
 ):
     """Generate analysis report for a single property."""
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
         # Resolve to parcel_id - analyzer expects parcel_id, not UUID
         parcel_id = resolve_to_parcel_id(get_engine(), property_id)
@@ -240,6 +243,13 @@ async def generate_property_analysis_report(
         analysis = analyzer.analyze_property(parcel_id)
         if not analysis:
             raise HTTPException(status_code=404, detail="Property analysis failed")
+
+        # Save analysis to database so it persists
+        try:
+            analyzer.save_analysis(analysis)
+            logger.info(f"Saved analysis for property {parcel_id}")
+        except Exception as save_error:
+            logger.warning(f"Failed to save analysis: {save_error}")
 
         if format == ReportFormat.JSON:
             return {

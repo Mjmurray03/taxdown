@@ -205,15 +205,22 @@ async def generate_appeal_pdf(
     PDF file as download attachment.
     """
     try:
-        # Configure generator
+        # Resolve property ID to parcel_id
+        engine = get_engine()
+        parcel_id = resolve_to_parcel_id(engine, property_id)
+        if not parcel_id:
+            raise HTTPException(status_code=404, detail=f"Property not found: {property_id}")
+
+        # Configure generator - save to database so it appears in list
         config = GeneratorConfig(
             template_style=style.value,
             include_comparables=True,
+            save_to_database=True,
         )
         generator.config = config
 
-        # Generate appeal (try as parcel_id first, then as UUID)
-        package = generator.generate_appeal(property_id)
+        # Generate appeal using resolved parcel_id
+        package = generator.generate_appeal(parcel_id)
 
         if not package:
             raise HTTPException(
@@ -268,15 +275,31 @@ async def batch_generate_appeals(
             detail="Maximum 20 properties per batch request"
         )
 
-    # Configure generator
+    # Resolve all property IDs to parcel_ids
+    engine = get_engine()
+    resolved_parcel_ids = []
+    for prop_id in request.property_ids:
+        parcel_id = resolve_to_parcel_id(engine, prop_id)
+        if parcel_id:
+            resolved_parcel_ids.append(parcel_id)
+        else:
+            logger.warning(f"Could not resolve property ID: {prop_id}")
+
+    if not resolved_parcel_ids:
+        raise HTTPException(
+            status_code=404,
+            detail="No valid properties found from provided IDs"
+        )
+
+    # Configure generator - always save by default
     config = GeneratorConfig(
         template_style=request.style.value,
         save_to_database=request.save_to_database,
     )
     generator.config = config
 
-    # Generate batch
-    result = generator.generate_batch(request.property_ids, config)
+    # Generate batch with resolved parcel_ids
+    result = generator.generate_batch(resolved_parcel_ids, config)
 
     # Convert to response format
     appeals = [_package_to_response(pkg) for pkg in result.appeals]

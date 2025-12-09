@@ -28,7 +28,7 @@ class GenerateAppealRequest(BaseModel):
     # Options
     style: TemplateStyle = Field(TemplateStyle.FORMAL, description="Letter style")
     include_comparables: bool = Field(True, description="Include comparables table")
-    save_to_database: bool = Field(False, description="Save appeal to database")
+    save_to_database: bool = Field(True, description="Save appeal to database (default: true)")
 
     # Override values (optional)
     mill_rate: float = Field(65.0, description="Mill rate for calculations")

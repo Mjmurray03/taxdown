@@ -98,7 +98,6 @@ async def get_user_by_email(
 
 @router.post("", response_model=APIResponse[PortfolioSummaryResponse])
 async def create_portfolio(
-    user_id: str,
     request: PortfolioCreate,
     service=Depends(get_portfolio_service),
     api_key: str = Depends(verify_api_key),
@@ -106,7 +105,7 @@ async def create_portfolio(
     """Create a new portfolio for a user."""
     try:
         portfolio = service.create_portfolio(
-            user_id=user_id,
+            user_id=request.user_id,
             name=request.name,
             description=request.description,
             default_mill_rate=request.default_mill_rate,

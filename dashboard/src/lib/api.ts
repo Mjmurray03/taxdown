@@ -335,48 +335,72 @@ export const portfolioApi = {
 
 // Report Types
 export interface ReportConfig {
-  type: 'savings-summary' | 'appeal-status' | 'portfolio-analysis' | 'assessment-trends' | 'property-comparison' | 'tax-breakdown';
   portfolio_id?: string;
-  start_date?: string;
-  end_date?: string;
-  format?: 'pdf' | 'csv' | 'xlsx';
+  property_id?: string;
+  report_type?: 'portfolio_summary' | 'appeal_package' | 'property_analysis' | 'comparables';
+  format?: 'pdf' | 'csv' | 'xlsx' | 'json';
+  include_executive_summary?: boolean;
+  include_property_details?: boolean;
+  include_analysis_results?: boolean;
+  include_recommendations?: boolean;
+  include_comparables?: boolean;
+  only_appeal_candidates?: boolean;
 }
 
-export interface GeneratedReport {
-  id: string;
-  name: string;
-  type: string;
+export interface ReportMetadata {
+  filename: string;
   format: string;
-  created_at: string;
-  file_url?: string;
+  size_bytes: number;
+  generated_at: string;
+  properties_included: number;
+  total_value?: number;
+  total_savings?: number;
 }
 
 // Report API
 export const reportApi = {
   generate: async (config: ReportConfig) => {
-    const response = await api.post<APIResponse<GeneratedReport>>('/reports/generate', config);
+    const response = await api.post<ReportMetadata>('/reports/generate', config);
     return response.data;
   },
 
-  list: async () => {
-    const response = await api.get<APIResponse<GeneratedReport[]>>('/reports');
-    return response.data;
-  },
-
-  download: async (reportId: string) => {
-    const response = await api.get(`/reports/${reportId}/download`, {
+  download: async (filename: string) => {
+    const response = await api.get(`/reports/download/${filename}`, {
       responseType: 'blob'
     });
     return response.data;
   },
 
-  delete: async (reportId: string) => {
-    const response = await api.delete(`/reports/${reportId}`);
+  // Portfolio-specific quick reports
+  portfolioPdf: async (portfolioId: string, onlyAppealCandidates: boolean = false) => {
+    const response = await api.post(`/reports/portfolio/${portfolioId}/pdf`, null, {
+      params: { only_appeal_candidates: onlyAppealCandidates },
+      responseType: 'blob'
+    });
     return response.data;
   },
 
-  schedule: async (config: ReportConfig & { schedule: string }) => {
-    const response = await api.post('/reports/schedule', config);
+  portfolioCsv: async (portfolioId: string, includeAnalysis: boolean = true) => {
+    const response = await api.post(`/reports/portfolio/${portfolioId}/csv`, null, {
+      params: { include_analysis: includeAnalysis },
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+
+  portfolioExcel: async (portfolioId: string) => {
+    const response = await api.post(`/reports/portfolio/${portfolioId}/excel`, null, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+
+  // Single property analysis report
+  propertyAnalysis: async (propertyId: string, format: 'pdf' | 'csv' | 'json' = 'json') => {
+    const response = await api.post(`/reports/property/${propertyId}/analysis`, null, {
+      params: { format },
+      responseType: format === 'json' ? 'json' : 'blob'
+    });
     return response.data;
   }
 };
