@@ -37,3 +37,4 @@ structlog>=23.2.0
 
 # Optional: Redis for caching
 redis>=5.0.0
+python-multipart>=0.0.6
