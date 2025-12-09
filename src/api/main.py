@@ -80,10 +80,11 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         origin = request.headers.get("origin", "")
+        is_allowed = self.is_origin_allowed(origin)
 
         # Handle preflight OPTIONS requests
         if request.method == "OPTIONS":
-            if self.is_origin_allowed(origin):
+            if is_allowed:
                 response = Response(status_code=200)
                 self.add_cors_headers(response, origin)
                 # Add max age for preflight cache
@@ -97,18 +98,18 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
         except Exception as e:
-            # Even on exceptions, we need to add CORS headers
-            # Create a basic error response
+            # On exceptions, return error response WITH CORS headers
+            # This is critical - without CORS headers, browser won't show the error
             response = JSONResponse(
                 status_code=500,
-                content={"detail": "Internal server error"}
+                content={"detail": "Internal server error", "error": str(e)}
             )
-            if self.is_origin_allowed(origin):
+            if is_allowed:
                 self.add_cors_headers(response, origin)
-            raise  # Re-raise after setting up the response headers
+            return response  # Return instead of raise to ensure CORS headers are sent
 
-        # Add CORS headers to successful responses and error responses
-        if self.is_origin_allowed(origin):
+        # Add CORS headers to all responses (success and error status codes)
+        if is_allowed:
             self.add_cors_headers(response, origin)
 
         return response
