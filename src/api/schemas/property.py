@@ -18,12 +18,17 @@ class PropertyType(str, Enum):
 
 
 class AssessmentCategory(str, Enum):
-    """Assessment fairness categories based on fairness score."""
-    FAIRLY_ASSESSED = "fairly_assessed"  # 0-30
-    SLIGHTLY_OVER = "slightly_over"      # 31-50
-    MODERATELY_OVER = "moderately_over"  # 51-70
-    SIGNIFICANTLY_OVER = "significantly_over"  # 71-100
-    UNANALYZED = "unanalyzed"            # No analysis yet
+    """
+    Assessment fairness categories based on fairness score.
+
+    SCORING: Higher score = FAIRER (less likely over-assessed)
+    Using Sales Comparison Approach - compares property value to comparables.
+    """
+    FAIRLY_ASSESSED = "fairly_assessed"      # 70-100 (at or below comparable median)
+    SLIGHTLY_OVER = "slightly_over"          # 50-69 (slightly above comparables)
+    MODERATELY_OVER = "moderately_over"      # 30-49 (moderately above, appeal candidate)
+    SIGNIFICANTLY_OVER = "significantly_over"  # 0-29 (greatly above, strong appeal candidate)
+    UNANALYZED = "unanalyzed"                # No analysis yet
 
 
 class PropertyBase(BaseModel):

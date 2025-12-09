@@ -39,10 +39,18 @@ async def analyze_property(
     api_key: str = Depends(verify_api_key)
 ):
     """
-    Run assessment fairness analysis on a single property.
+    Run assessment fairness analysis using the SALES COMPARISON APPROACH.
+
+    This compares the property's total market value to similar properties
+    in the same neighborhood/subdivision to identify potential over-assessments.
 
     Returns:
-    - Fairness score (0-100, higher = more over-assessed)
+    - Fairness score (0-100, higher = FAIRER, lower = appeal candidate)
+      - 90-100: Fairly assessed
+      - 70-89: Slightly above comparables
+      - 50-69: Moderately above comparables (worth reviewing)
+      - 30-49: Significantly above comparables (appeal candidate)
+      - 0-29: Greatly above comparables (strong appeal candidate)
     - Confidence level
     - Recommended action (APPEAL, MONITOR, NONE)
     - Estimated savings if appeal successful
@@ -113,6 +121,10 @@ async def analyze_property(
             ]
 
         # Build response - map from AssessmentAnalysis dataclass to schema
+        # fair_assessed_value is 20% of median comparable market value
+        # (this is what the subject property SHOULD be assessed at if valued like comparables)
+        fair_assessed_cents = int(analysis.median_comparable_value_cents * 0.20) if analysis.median_comparable_value_cents else None
+
         result = AssessmentAnalysisResult(
             property_id=str(analysis.property_id),
             parcel_id=analysis.parcel_id,
@@ -123,12 +135,10 @@ async def analyze_property(
             fairness_score=analysis.fairness_score,
             confidence_level=analysis.confidence,
             recommended_action=RecommendedAction(analysis.recommended_action),
-            fair_assessed_value=cents_to_dollars(
-                int(analysis.total_val_cents * analysis.median_comparable_ratio)
-            ) if analysis.median_comparable_ratio else None,
+            fair_assessed_value=cents_to_dollars(fair_assessed_cents) if fair_assessed_cents else None,
             estimated_annual_savings=cents_to_dollars(analysis.estimated_annual_savings_cents),
             comparable_count=analysis.comparable_count,
-            median_comparable_ratio=analysis.median_comparable_ratio,
+            median_comparable_value=cents_to_dollars(analysis.median_comparable_value_cents),  # Median market VALUE (in dollars)
             percentile_rank=None,  # Not provided by current analyzer
             comparables=comparables_list,
             analysis_date=analysis.analysis_date,
@@ -227,6 +237,9 @@ async def bulk_analyze(
                 except Exception as save_err:
                     logger.warning(f"Failed to save bulk analysis for {parcel_id}: {save_err}")
 
+                # fair_assessed_value is 20% of median comparable market value
+                fair_assessed_cents = int(analysis.median_comparable_value_cents * 0.20) if analysis.median_comparable_value_cents else None
+
                 result = AssessmentAnalysisResult(
                     property_id=str(analysis.property_id),
                     parcel_id=analysis.parcel_id,
@@ -237,12 +250,10 @@ async def bulk_analyze(
                     fairness_score=analysis.fairness_score,
                     confidence_level=analysis.confidence,
                     recommended_action=RecommendedAction(analysis.recommended_action),
-                    fair_assessed_value=cents_to_dollars(
-                        int(analysis.total_val_cents * analysis.median_comparable_ratio)
-                    ) if analysis.median_comparable_ratio else None,
+                    fair_assessed_value=cents_to_dollars(fair_assessed_cents) if fair_assessed_cents else None,
                     estimated_annual_savings=cents_to_dollars(analysis.estimated_annual_savings_cents),
                     comparable_count=analysis.comparable_count,
-                    median_comparable_ratio=analysis.median_comparable_ratio,
+                    median_comparable_value=cents_to_dollars(analysis.median_comparable_value_cents),  # Median market VALUE (dollars)
                     percentile_rank=None,
                     analysis_date=analysis.analysis_date,
                     mill_rate_used=request.mill_rate,

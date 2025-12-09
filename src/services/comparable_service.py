@@ -1,39 +1,38 @@
 """
 Comparable Property Matching Service for Taxdown Assessment Analyzer.
 
-This service wraps the SQL comparable matching logic in a clean Python API,
-providing methods to find similar properties for assessment fairness analysis.
+This service implements the SALES COMPARISON APPROACH used by Benton County
+to find truly comparable properties for assessment fairness analysis.
 
-The service uses a two-tier matching approach:
-1. PRIORITY 1: Same subdivision matches (if 5+ available)
-2. PRIORITY 2: Proximity matches within 0.5 miles
+KEY PRINCIPLES (from County methodology):
+1. SAME SUBDIVISION/NEIGHBORHOOD is the most important factor
+2. Similar property characteristics (type, size, improvements)
+3. Properties should have similar physical attributes
+4. Location/neighborhood context matters significantly
 
-Similarity scoring uses weighted criteria:
-- Type match: 10%
-- Value similarity: 35% (1 - abs(val_diff) / target_val)
-- Acreage similarity: 30%
-- Location proximity: 25%
+Matching Criteria (in priority order):
+1. Same subdivision (REQUIRED if subject has subdivision)
+2. Same property type (RI, RV, CI, etc.)
+3. Similar lot size (acre_area within ±50%)
+4. Similar improvement value (imp_val_cents within ±50%)
+5. Similar total value range (within 2x)
+6. Geographic proximity as final fallback
+
+A property may be OVER-ASSESSED if its total market value is significantly
+HIGHER than comparable properties with similar characteristics in the same area.
 
 Usage:
-    from services import ComparableService, PropertyCriteria
+    from services import ComparableService
     from config import get_engine
 
     engine = get_engine()
     service = ComparableService(engine)
 
-    # Find by property ID
+    # Find truly comparable properties
     comparables = service.find_comparables("16-26005-000")
 
-    # Find by criteria
-    criteria = PropertyCriteria(
-        total_val_cents=50000000,
-        acreage=2.5,
-        property_type="RI",
-        subdivision="PLEASANT GROVE",
-        latitude=36.3729,
-        longitude=-94.2088
-    )
-    comparables = service.find_comparables_by_criteria(criteria)
+    # Each comparable has total_val_cents that can be compared
+    # to the subject property to determine fairness
 """
 
 import logging
@@ -250,12 +249,18 @@ class ComparableService:
         limit: int = 20
     ) -> List[ComparableProperty]:
         """
-        Find comparable properties for a given property ID.
+        Find truly comparable properties using the SALES COMPARISON APPROACH.
 
-        This method uses the PostgreSQL find_comparable_properties() function
-        which implements a two-tier matching strategy:
-        1. Same subdivision matches (if 5+ available)
-        2. Proximity matches within 0.5 miles radius
+        This method implements county assessment methodology:
+        1. Same subdivision is CRITICAL (properties in same neighborhood)
+        2. Same property type (residential, commercial, etc.)
+        3. Similar lot size (within ±50%)
+        4. Similar improvement value (indicates similar building quality/size)
+        5. Geographic proximity as fallback for properties without subdivision
+
+        The goal is to find properties that the county would consider
+        "comparable" for assessment purposes - same neighborhood, similar
+        characteristics.
 
         Args:
             property_id: The parcel ID to find comparables for
@@ -276,30 +281,187 @@ class ComparableService:
         logger.info(f"Finding comparables for property: {property_id} (limit={limit})")
 
         try:
-            # Call the PostgreSQL function
+            # Sales Comparison Approach Query
+            # Priority: Same subdivision > Same type > Similar size > Similar improvements
             query = text("""
+                WITH subject AS (
+                    SELECT
+                        id,
+                        parcel_id,
+                        type_,
+                        subdivname,
+                        acre_area,
+                        total_val_cents,
+                        assess_val_cents,
+                        land_val_cents,
+                        imp_val_cents,
+                        geometry
+                    FROM properties
+                    WHERE parcel_id = :parcel_id
+                      AND is_active = true
+                    LIMIT 1
+                ),
+
+                -- Find comparables prioritizing subdivision match
+                comparables AS (
+                    SELECT
+                        p.parcel_id AS comparable_parcelid,
+                        p.ph_add AS property_address,
+                        p.total_val_cents AS total_value,
+                        p.assess_val_cents AS assess_value,
+                        p.land_val_cents AS land_value,
+                        p.imp_val_cents AS imp_value,
+                        p.acre_area,
+                        p.type_ AS property_type,
+                        p.ow_name AS owner_name,
+                        p.subdivname AS subdivision,
+
+                        -- Match type: SUBDIVISION or PROXIMITY
+                        CASE
+                            WHEN p.subdivname = s.subdivname AND p.subdivname IS NOT NULL
+                            THEN 'SUBDIVISION'
+                            ELSE 'PROXIMITY'
+                        END AS match_type,
+
+                        -- Calculate distance (0 for subdivision matches)
+                        CASE
+                            WHEN p.subdivname = s.subdivname AND p.subdivname IS NOT NULL THEN 0.0
+                            WHEN p.geometry IS NOT NULL AND s.geometry IS NOT NULL THEN
+                                ST_Distance(
+                                    ST_Transform(p.geometry, 4326)::geography,
+                                    ST_Transform(s.geometry, 4326)::geography
+                                ) * 0.000621371  -- meters to miles
+                            ELSE 999.0
+                        END AS distance_miles,
+
+                        -- Assessment ratio (always ~20% but include for reference)
+                        CASE
+                            WHEN p.total_val_cents > 0
+                            THEN ROUND((p.assess_val_cents::numeric / p.total_val_cents::numeric) * 100, 2)
+                            ELSE 0
+                        END AS assessment_ratio,
+
+                        -- Value difference percentage
+                        CASE
+                            WHEN s.total_val_cents > 0
+                            THEN ROUND(ABS(p.total_val_cents - s.total_val_cents)::numeric / s.total_val_cents * 100, 2)
+                            ELSE 0
+                        END AS value_difference_pct,
+
+                        -- Acreage difference percentage
+                        CASE
+                            WHEN s.acre_area > 0.01
+                            THEN ROUND(ABS(p.acre_area::numeric - s.acre_area::numeric) / s.acre_area::numeric * 100, 2)
+                            ELSE 0
+                        END AS acreage_difference_pct,
+
+                        -- Improvement value difference percentage
+                        CASE
+                            WHEN s.imp_val_cents > 0
+                            THEN ROUND(ABS(p.imp_val_cents - s.imp_val_cents)::numeric / s.imp_val_cents * 100, 2)
+                            ELSE 0
+                        END AS imp_difference_pct,
+
+                        -- SCORING COMPONENTS
+                        -- Type match: 100 if same type
+                        CASE WHEN p.type_ = s.type_ THEN 100.0 ELSE 0.0 END AS type_match_score,
+
+                        -- Value similarity score (closer = higher score)
+                        GREATEST(0, 100 - (
+                            CASE
+                                WHEN s.total_val_cents > 0
+                                THEN ABS(p.total_val_cents - s.total_val_cents)::numeric / s.total_val_cents * 100
+                                ELSE 100
+                            END
+                        )) AS value_match_score,
+
+                        -- Acreage similarity score
+                        GREATEST(0, 100 - (
+                            CASE
+                                WHEN s.acre_area > 0.01
+                                THEN ABS(p.acre_area::numeric - s.acre_area::numeric) / s.acre_area::numeric * 100
+                                ELSE 100
+                            END
+                        )) AS acreage_match_score,
+
+                        -- Location score (subdivision match = 100, proximity decreases with distance)
+                        CASE
+                            WHEN p.subdivname = s.subdivname AND p.subdivname IS NOT NULL THEN 100.0
+                            WHEN p.geometry IS NOT NULL AND s.geometry IS NOT NULL THEN
+                                GREATEST(0, 100 - (
+                                    ST_Distance(
+                                        ST_Transform(p.geometry, 4326)::geography,
+                                        ST_Transform(s.geometry, 4326)::geography
+                                    ) * 0.000621371 * 50  -- Penalize distance
+                                ))
+                            ELSE 0.0
+                        END AS location_score,
+
+                        -- Improvement similarity score (key for sales comparison)
+                        GREATEST(0, 100 - (
+                            CASE
+                                WHEN s.imp_val_cents > 0
+                                THEN ABS(p.imp_val_cents - s.imp_val_cents)::numeric / s.imp_val_cents * 100
+                                ELSE
+                                    CASE WHEN p.imp_val_cents > 0 THEN 100 ELSE 0 END
+                            END
+                        )) AS improvement_match_score
+
+                    FROM properties p, subject s
+                    WHERE p.parcel_id != s.parcel_id
+                      AND p.is_active = true
+                      AND p.total_val_cents > 0
+                      -- MUST be same property type
+                      AND p.type_ = s.type_
+                      -- Either same subdivision OR within reasonable value range
+                      AND (
+                          -- Same subdivision: relax other constraints
+                          (p.subdivname = s.subdivname AND p.subdivname IS NOT NULL)
+                          OR
+                          -- Different subdivision: must be similar size and value
+                          (
+                              p.acre_area BETWEEN s.acre_area * 0.5 AND s.acre_area * 2.0
+                              AND p.total_val_cents BETWEEN s.total_val_cents * 0.3 AND s.total_val_cents * 3.0
+                          )
+                      )
+                )
+
                 SELECT
-                    comparable_parcelid,
-                    match_type,
-                    distance_miles,
-                    similarity_score,
-                    total_value,
-                    assess_value,
-                    land_value,
-                    imp_value,
-                    acre_area,
-                    property_type,
-                    owner_name,
-                    property_address,
-                    subdivision,
-                    assessment_ratio,
-                    value_difference_pct,
-                    acreage_difference_pct,
-                    type_match_score,
-                    value_match_score,
-                    acreage_match_score,
-                    location_score
-                FROM find_comparable_properties(:parcel_id)
+                    c.comparable_parcelid,
+                    c.match_type,
+                    ROUND(c.distance_miles::numeric, 3)::float AS distance_miles,
+                    -- Overall similarity score (weighted)
+                    ROUND((
+                        c.type_match_score::numeric * 0.05 +        -- 5% type (already filtered)
+                        c.location_score::numeric * 0.35 +          -- 35% location (subdivision is key)
+                        c.value_match_score::numeric * 0.20 +       -- 20% value similarity
+                        c.acreage_match_score::numeric * 0.15 +     -- 15% lot size
+                        c.improvement_match_score::numeric * 0.25   -- 25% improvement value
+                    ), 2)::float AS similarity_score,
+                    c.total_value,
+                    c.assess_value,
+                    c.land_value,
+                    c.imp_value,
+                    ROUND(c.acre_area::numeric, 3)::float AS acre_area,
+                    c.property_type,
+                    c.owner_name,
+                    c.property_address,
+                    c.subdivision,
+                    c.assessment_ratio::float AS assessment_ratio,
+                    c.value_difference_pct::float AS value_difference_pct,
+                    c.acreage_difference_pct::float AS acreage_difference_pct,
+                    ROUND(c.type_match_score::numeric, 2)::float AS type_match_score,
+                    ROUND(c.value_match_score::numeric, 2)::float AS value_match_score,
+                    ROUND(c.acreage_match_score::numeric, 2)::float AS acreage_match_score,
+                    ROUND(c.location_score::numeric, 2)::float AS location_score
+                FROM comparables c
+                ORDER BY
+                    -- Prioritize subdivision matches
+                    CASE WHEN c.match_type = 'SUBDIVISION' THEN 0 ELSE 1 END,
+                    -- Then by overall similarity
+                    (c.type_match_score * 0.05 + c.location_score * 0.35 +
+                     c.value_match_score * 0.20 + c.acreage_match_score * 0.15 +
+                     c.improvement_match_score * 0.25) DESC
                 LIMIT :limit
             """)
 

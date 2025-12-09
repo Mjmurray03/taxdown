@@ -50,10 +50,19 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AssessmentAnalysis:
     """
-    Complete assessment analysis result for a property.
+    Complete assessment analysis result for a property using SALES COMPARISON APPROACH.
 
-    This dataclass combines results from all Phase 4 services into a single
-    comprehensive report suitable for display to users or storage in database.
+    This dataclass combines results from all services into a single comprehensive
+    report suitable for display to users or storage in database.
+
+    SCORING (from taxpayer perspective):
+    - Higher fairness_score = fairer assessment (less likely over-assessed)
+    - Lower fairness_score = more likely over-assessed (better appeal candidate)
+    - 90-100: Fairly assessed (at or below comparable median)
+    - 70-89: Slightly above comparables (probably fair)
+    - 50-69: Moderately above comparables (worth reviewing)
+    - 30-49: Significantly above comparables (appeal candidate)
+    - 0-29: Greatly above comparables (strong appeal candidate)
     """
     # Property identification
     property_id: str
@@ -63,16 +72,16 @@ class AssessmentAnalysis:
     # Current values (all in cents)
     total_val_cents: int
     assess_val_cents: int
-    current_ratio: float  # assess_val / total_val
+    current_ratio: float  # assess_val / total_val (always ~20% for Benton County)
 
-    # Analysis results from FairnessScorer
-    fairness_score: int  # 0-100 (higher = more over-assessed)
+    # Analysis results from FairnessScorer (SALES COMPARISON APPROACH)
+    fairness_score: int  # 0-100 (higher = FAIRER, lower = appeal candidate)
     confidence: int  # 0-100 (confidence in the analysis)
-    interpretation: str  # "FAIR", "OVER_ASSESSED", "UNDER_ASSESSED"
+    interpretation: str  # "FAIR", "POTENTIALLY_OVER_ASSESSED", "OVER_ASSESSED"
 
     # Comparables summary from ComparableService
     comparable_count: int
-    median_comparable_ratio: float
+    median_comparable_value_cents: int  # Median total market value of comparables (in cents)
 
     # Savings estimate from SavingsEstimator
     estimated_annual_savings_cents: int
@@ -88,6 +97,12 @@ class AssessmentAnalysis:
     appeal_strength: Optional[str] = None  # "STRONG", "MODERATE", "WEAK" (None if no appeal)
     comparables: List[Any] = None  # List of ComparableProperty objects
     model_version: str = "1.0.0"
+
+    # Backward compatibility property
+    @property
+    def median_comparable_ratio(self) -> float:
+        """Backward compatibility - returns median_comparable_value_cents."""
+        return float(self.median_comparable_value_cents)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization or database storage."""
@@ -206,14 +221,17 @@ class AssessmentAnalyzer:
 
     def analyze_property(self, property_id: str) -> Optional[AssessmentAnalysis]:
         """
-        Perform complete assessment analysis on a single property.
+        Perform complete assessment analysis using the SALES COMPARISON APPROACH.
 
-        This method:
-        1. Retrieves property details from database
-        2. Finds comparable properties
-        3. Calculates fairness score
-        4. Estimates potential savings
-        5. Generates recommendation
+        This method implements Benton County's actual assessment methodology:
+        1. Find truly comparable properties (same subdivision, similar characteristics)
+        2. Compare subject property's TOTAL MARKET VALUE to comparables
+        3. If subject is significantly above comparable median, it may be over-assessed
+        4. Calculate potential savings from a successful appeal
+
+        Key insight: Since Benton County applies a uniform 20% assessment ratio,
+        comparing ratios is useless. Instead, we compare total market values
+        among comparable properties to identify potential over-assessments.
 
         Args:
             property_id: Parcel ID to analyze
@@ -225,7 +243,7 @@ class AssessmentAnalyzer:
             PropertyNotFoundError: If property doesn't exist
             DatabaseError: If database operation fails
         """
-        logger.info(f"Starting analysis for property: {property_id}")
+        logger.info(f"Starting sales comparison analysis for property: {property_id}")
 
         try:
             # Step 1: Get property details
@@ -242,89 +260,52 @@ class AssessmentAnalyzer:
                 )
                 return None
 
-            # Calculate current assessment ratio (for display purposes)
+            # Calculate current assessment ratio (for display - always ~20%)
             current_ratio = property_data['assess_val_cents'] / property_data['total_val_cents']
 
-            # Step 2: Find comparable properties
-            logger.debug(f"Finding comparables for {property_id}")
+            # Step 2: Find truly comparable properties using sales comparison approach
+            # The comparable finder now prioritizes same subdivision and similar characteristics
+            logger.debug(f"Finding comparable properties for {property_id}")
             comparables = self.comparable_service.find_comparables(property_id, limit=20)
 
             if not comparables or len(comparables) == 0:
                 logger.warning(f"No comparables found for property {property_id}. Cannot perform fairness analysis.")
                 return None
 
-            # Step 3: Calculate fairness score using VALUE PER ACRE comparison
-            # Since this county applies a uniform 20% assessment ratio to all properties,
-            # comparing assessment ratios is meaningless (all are ~20%).
-            # Instead, we compare total market value per acre to identify properties
-            # that may be over-valued relative to similar properties.
+            # Step 3: Calculate fairness score using TOTAL VALUE comparison
+            # Compare subject's total_val_cents to comparable total_val_cents
+            # Higher value than comparables = potentially over-assessed
             logger.debug(f"Calculating fairness score for {property_id}")
 
-            # Get subject property's value per acre
-            subject_acreage = property_data.get('acreage', 0)
-            if subject_acreage and subject_acreage > 0:
-                subject_value_per_acre = property_data['total_val_cents'] / subject_acreage
-            else:
-                # Fallback: use total value directly if no acreage
-                subject_value_per_acre = property_data['total_val_cents']
+            subject_total_value = property_data['total_val_cents']
+            comparable_values = [comp.total_val_cents for comp in comparables]
 
-            # Get comparable properties' values per acre
-            comparable_values_per_acre = []
-            for comp in comparables:
-                if comp.acreage and comp.acreage > 0:
-                    comparable_values_per_acre.append(comp.total_val_cents / comp.acreage)
-                else:
-                    comparable_values_per_acre.append(comp.total_val_cents)
-
-            # Use the fairness scorer with value-per-acre instead of assessment ratios
-            # Higher value-per-acre relative to comparables = potentially over-assessed
+            # Use the updated fairness scorer with value comparison
             fairness_result = self.fairness_scorer.calculate_fairness_score(
-                subject_ratio=subject_value_per_acre,
-                comparable_ratios=comparable_values_per_acre
+                subject_value=subject_total_value,
+                comparable_values=comparable_values
             )
 
             if not fairness_result:
                 logger.warning(f"Could not calculate fairness score for {property_id}")
                 return None
 
-            # Step 4: Estimate savings based on value-per-acre comparison
-            # If subject's value-per-acre is higher than median, calculate what
-            # the property SHOULD be valued at based on comparable properties
-            logger.debug(f"Estimating savings for {property_id}")
+            # Step 4: Get savings from fairness result (already calculated)
+            # The new FairnessScorer calculates over_assessment and potential_savings
+            estimated_annual_savings = fairness_result.potential_annual_savings_cents
+            estimated_five_year_savings = estimated_annual_savings * 5
 
-            # Calculate target total value based on median value-per-acre
-            median_value_per_acre = fairness_result.median_ratio  # This is now median value-per-acre
-            if subject_acreage and subject_acreage > 0:
-                target_total_val_cents = int(median_value_per_acre * subject_acreage)
-            else:
-                target_total_val_cents = int(median_value_per_acre)
-
-            # Target assessed value is 20% of target total value (county's standard rate)
-            target_assessed_cents = int(target_total_val_cents * 0.20)
-
-            # Only calculate savings if current assessment is higher than target
-            if property_data['assess_val_cents'] > target_assessed_cents:
-                savings_estimate = self.savings_estimator.estimate_savings(
-                    current_assessed_cents=property_data['assess_val_cents'],
-                    target_assessed_cents=target_assessed_cents,
-                    mill_rate=self.default_mill_rate
-                )
-            else:
-                # Property is fairly or under-assessed, no savings
-                savings_estimate = self.savings_estimator.estimate_savings(
-                    current_assessed_cents=property_data['assess_val_cents'],
-                    target_assessed_cents=property_data['assess_val_cents'],  # Same value = no savings
-                    mill_rate=self.default_mill_rate
-                )
-
-            # Step 5: Determine recommendation
-            recommended_action, appeal_strength = self._determine_recommendation(
+            # Step 5: Determine recommendation based on new score interpretation
+            # Note: New scoring is INVERTED - higher score = fairer
+            recommended_action, appeal_strength = self._determine_recommendation_v2(
                 fairness_score=fairness_result.fairness_score,
                 confidence=fairness_result.confidence,
-                savings_cents=savings_estimate.annual_savings_cents
+                over_assessment_cents=fairness_result.over_assessment_cents,
+                savings_cents=estimated_annual_savings
             )
 
             # Step 6: Build analysis result
+            # Store median_comparable_value_cents (market value of comparable properties)
             analysis = AssessmentAnalysis(
                 property_id=property_data['id'],
                 parcel_id=property_data['parcel_id'],
@@ -336,21 +317,23 @@ class AssessmentAnalyzer:
                 confidence=fairness_result.confidence,
                 interpretation=fairness_result.interpretation,
                 comparable_count=len(comparables),
-                median_comparable_ratio=fairness_result.median_ratio,
-                comparables=comparables,  # Include actual comparable properties
-                estimated_annual_savings_cents=savings_estimate.annual_savings_cents,
-                estimated_five_year_savings_cents=savings_estimate.five_year_savings_cents,
+                median_comparable_value_cents=fairness_result.median_value,  # Median total value of comparables
+                comparables=comparables,
+                estimated_annual_savings_cents=estimated_annual_savings,
+                estimated_five_year_savings_cents=estimated_five_year_savings,
                 recommended_action=recommended_action,
                 appeal_strength=appeal_strength,
                 analysis_date=datetime.now(),
-                model_version="1.0.0"
+                model_version="2.0.0"  # Updated version for sales comparison approach
             )
 
             logger.info(
                 f"Analysis complete for {property_id}: "
-                f"fairness={fairness_result.fairness_score}, "
+                f"fairness={fairness_result.fairness_score}/100, "
+                f"interpretation={fairness_result.interpretation}, "
                 f"action={recommended_action}, "
-                f"savings=${savings_estimate.annual_savings_cents / 100:,.2f}/year"
+                f"over_assessment=${fairness_result.over_assessment_cents / 100:,.2f}, "
+                f"potential_savings=${estimated_annual_savings / 100:,.2f}/year"
             )
 
             return analysis
@@ -681,6 +664,51 @@ class AssessmentAnalyzer:
             return ("MONITOR", "WEAK")
 
         # No action needed
+        else:
+            return ("NONE", None)
+
+    def _determine_recommendation_v2(
+        self,
+        fairness_score: int,
+        confidence: int,
+        over_assessment_cents: int,
+        savings_cents: int
+    ) -> tuple[str, Optional[str]]:
+        """
+        Determine appeal recommendation based on sales comparison analysis.
+
+        NEW SCORING INTERPRETATION (inverted from v1):
+        - Higher score = fairer assessment (less likely to be over-assessed)
+        - Lower score = more likely over-assessed (better appeal candidate)
+
+        Recommendation Logic:
+        - STRONG APPEAL: fairness <= 40, over_assessment >= $10k, savings >= $100/year
+        - MODERATE APPEAL: fairness <= 60, over_assessment >= $5k, savings >= $50/year
+        - MONITOR: fairness <= 75, any over-assessment
+        - NO ACTION: fairness > 75 (property is at or below comparable median)
+
+        Args:
+            fairness_score: Fairness score (0-100, higher = fairer)
+            confidence: Confidence score (0-100)
+            over_assessment_cents: Amount property may be over-assessed
+            savings_cents: Estimated annual savings in cents
+
+        Returns:
+            Tuple of (recommended_action, appeal_strength)
+        """
+        # Strong appeal case - significantly over-assessed
+        if fairness_score <= 40 and over_assessment_cents >= 1000000 and savings_cents >= 10000:  # $10k over, $100+ savings
+            return ("APPEAL", "STRONG")
+
+        # Moderate appeal case
+        elif fairness_score <= 60 and over_assessment_cents >= 500000 and savings_cents >= 5000:  # $5k over, $50+ savings
+            return ("APPEAL", "MODERATE")
+
+        # Monitor case - slightly above comparables
+        elif fairness_score <= 75 and over_assessment_cents > 0:
+            return ("MONITOR", "WEAK")
+
+        # No action needed - property is at or below comparable median
         else:
             return ("NONE", None)
 

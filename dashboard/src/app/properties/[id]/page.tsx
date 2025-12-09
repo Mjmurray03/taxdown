@@ -162,7 +162,8 @@ function PropertyDetailPageContent() {
             </div>
           </div>
           <div className="flex gap-3">
-            {property.fairness_score && property.fairness_score >= 50 && (
+            {/* Show appeal button for appeal candidates (lower score = more over-assessed) */}
+            {property.fairness_score && property.fairness_score <= 60 && (
               <Button
                 onClick={() => appealMutation.mutate('formal')}
                 disabled={appealMutation.isPending}
@@ -340,7 +341,8 @@ function PropertyDetailPageContent() {
                       </div>
                     </div>
 
-                    {(analysisData?.fairness_score ?? property.fairness_score ?? 0) >= 50 && (
+                    {/* Lower fairness_score = more over-assessed = better appeal candidate */}
+                    {(analysisData?.fairness_score ?? property.fairness_score ?? 100) <= 60 && (
                       <div className="p-6 bg-[#DCFCE7] border border-[#166534]/20 rounded-lg">
                         <div className="flex items-center gap-3 mb-2">
                           <TrendingUp className="h-5 w-5 text-[#166534]" />
@@ -526,7 +528,8 @@ function PropertyDetailPageContent() {
                       </div>
                     )}
                   </div>
-                ) : property.fairness_score && property.fairness_score >= 50 ? (
+                ) : property.fairness_score && property.fairness_score <= 60 ? (
+                  /* Lower score = more over-assessed = better appeal candidate */
                   <div className="text-center py-16">
                     <FileText className="h-12 w-12 text-[#1E40AF] mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-[#09090B]">
@@ -570,7 +573,7 @@ function PropertyDetailPageContent() {
                     <h3 className="text-lg font-semibold text-[#09090B]">Appeal Not Recommended</h3>
                     <p className="text-sm text-[#71717A] mt-2">
                       {property.fairness_score
-                        ? 'The fairness score is below 50%, indicating the assessment is fair.'
+                        ? 'The fairness score is above 60%, indicating the assessment is fair compared to similar properties.'
                         : 'Run an analysis first to determine if an appeal is recommended.'}
                     </p>
                     {!property.fairness_score && (

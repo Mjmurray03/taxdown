@@ -50,11 +50,18 @@ export interface PaginatedResponse<T> {
 }
 
 // Property Types
+// SCORING: Higher fairness_score = FAIRER (less likely over-assessed)
+// Score ranges are INVERTED from original design:
+// - 90-100: Fairly assessed (at or below comparable median)
+// - 70-89: Slightly above comparables
+// - 50-69: Moderately above comparables (worth reviewing)
+// - 30-49: Significantly above comparables (appeal candidate)
+// - 0-29: Greatly above comparables (strong appeal candidate)
 export type AssessmentCategory =
-  | 'fairly_assessed'      // 0-30
-  | 'slightly_over'        // 31-50
-  | 'moderately_over'      // 51-70
-  | 'significantly_over'   // 71-100
+  | 'fairly_assessed'      // 70-100 (higher = fairer)
+  | 'slightly_over'        // 50-69
+  | 'moderately_over'      // 30-49
+  | 'significantly_over'   // 0-29
   | 'unanalyzed';          // No analysis
 
 export interface AssessmentDistribution {
@@ -149,20 +156,32 @@ export interface ComparableProperty {
   similarity_score: number | null;
 }
 
+/**
+ * Analysis result using the Sales Comparison Approach.
+ *
+ * fairness_score interpretation (higher = FAIRER):
+ * - 90-100: Fairly assessed
+ * - 70-89: Slightly above comparables
+ * - 50-69: Moderately above comparables (worth reviewing)
+ * - 30-49: Significantly above comparables (appeal candidate)
+ * - 0-29: Greatly above comparables (strong appeal candidate)
+ */
 export interface AnalysisResult {
   property_id: string;
   parcel_id: string;
   address: string | null;
   current_market_value: number | null;
   current_assessed_value: number | null;
-  current_assessment_ratio: number | null;
-  fairness_score: number;
+  current_assessment_ratio: number | null;  // Always ~20% for Benton County
+  fairness_score: number;  // 0-100, higher = FAIRER
   confidence_level: number;
   recommended_action: 'APPEAL' | 'MONITOR' | 'NONE';
-  fair_assessed_value: number | null;
+  fair_assessed_value: number | null;  // What assessment SHOULD be based on comparables (dollars)
   estimated_annual_savings: number | null;
   comparable_count: number;
-  median_comparable_ratio: number | null;
+  median_comparable_value: number | null;  // Median market value of comparables (dollars)
+  /** @deprecated Use median_comparable_value instead */
+  median_comparable_ratio?: number | null;
   comparables: ComparableProperty[] | null;
   analysis_date: string;
   mill_rate_used: number;

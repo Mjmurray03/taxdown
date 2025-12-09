@@ -184,15 +184,20 @@ async def search_properties(
         params["max_score"] = request.max_fairness_score
 
     # Handle assessment category filter
+    # NEW SCORING: Higher score = FAIRER (inverted from original)
+    # - fairly_assessed: 70-100 (at or below comparable median)
+    # - slightly_over: 50-69 (slightly above comparables)
+    # - moderately_over: 30-49 (moderately above, appeal candidate)
+    # - significantly_over: 0-29 (greatly above, strong appeal candidate)
     if request.assessment_category:
         if request.assessment_category == "fairly_assessed":
-            conditions.append("aa.fairness_score <= 30")
+            conditions.append("aa.fairness_score >= 70")
         elif request.assessment_category == "slightly_over":
-            conditions.append("aa.fairness_score > 30 AND aa.fairness_score <= 50")
+            conditions.append("aa.fairness_score >= 50 AND aa.fairness_score < 70")
         elif request.assessment_category == "moderately_over":
-            conditions.append("aa.fairness_score > 50 AND aa.fairness_score <= 70")
+            conditions.append("aa.fairness_score >= 30 AND aa.fairness_score < 50")
         elif request.assessment_category == "significantly_over":
-            conditions.append("aa.fairness_score > 70")
+            conditions.append("aa.fairness_score < 30")
         elif request.assessment_category == "unanalyzed":
             conditions.append("aa.fairness_score IS NULL")
 
@@ -395,11 +400,12 @@ async def get_assessment_distribution(
     """
     Get distribution of properties by assessment fairness category.
 
-    Categories based on fairness score:
-    - fairly_assessed: 0-30 (fair or under-assessed)
-    - slightly_over: 31-50 (slightly over-assessed)
-    - moderately_over: 51-70 (moderately over-assessed)
-    - significantly_over: 71-100 (significantly over-assessed)
+    Categories based on fairness score (SALES COMPARISON APPROACH):
+    Higher score = FAIRER (less likely over-assessed)
+    - fairly_assessed: 70-100 (at or below comparable median)
+    - slightly_over: 50-69 (slightly above comparables)
+    - moderately_over: 30-49 (moderately above, appeal candidate)
+    - significantly_over: 0-29 (greatly above, strong appeal candidate)
 
     Returns counts for each category plus total analyzed properties.
     """
@@ -415,6 +421,7 @@ async def get_assessment_distribution(
 
     with engine.connect() as conn:
         # Get counts by fairness category from analyzed properties
+        # NEW SCORING: Higher score = FAIRER
         query = text("""
             WITH latest_analyses AS (
                 SELECT DISTINCT ON (property_id)
@@ -426,10 +433,10 @@ async def get_assessment_distribution(
                 ORDER BY property_id, analysis_date DESC
             )
             SELECT
-                COUNT(*) FILTER (WHERE fairness_score <= 30) as fairly_assessed,
-                COUNT(*) FILTER (WHERE fairness_score > 30 AND fairness_score <= 50) as slightly_over,
-                COUNT(*) FILTER (WHERE fairness_score > 50 AND fairness_score <= 70) as moderately_over,
-                COUNT(*) FILTER (WHERE fairness_score > 70) as significantly_over,
+                COUNT(*) FILTER (WHERE fairness_score >= 70) as fairly_assessed,
+                COUNT(*) FILTER (WHERE fairness_score >= 50 AND fairness_score < 70) as slightly_over,
+                COUNT(*) FILTER (WHERE fairness_score >= 30 AND fairness_score < 50) as moderately_over,
+                COUNT(*) FILTER (WHERE fairness_score < 30) as significantly_over,
                 COUNT(*) as total_analyzed,
                 COUNT(*) FILTER (WHERE recommended_action = 'APPEAL') as appeal_candidates,
                 COALESCE(SUM(estimated_savings_cents) FILTER (WHERE recommended_action = 'APPEAL'), 0) as total_potential_savings_cents

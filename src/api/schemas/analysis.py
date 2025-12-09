@@ -2,6 +2,16 @@
 Analysis API Schemas
 
 Pydantic models for assessment analysis request/response validation.
+
+SCORING SYSTEM (Sales Comparison Approach):
+The fairness_score indicates how fairly a property is assessed relative to
+comparable properties in the same neighborhood. Higher score = FAIRER.
+
+- 90-100: Fairly assessed (at or below comparable median)
+- 70-89: Slightly above comparables (probably fair)
+- 50-69: Moderately above comparables (worth reviewing)
+- 30-49: Significantly above comparables (appeal candidate)
+- 0-29: Greatly above comparables (strong appeal candidate)
 """
 
 from pydantic import BaseModel, Field
@@ -29,7 +39,20 @@ class ComparablePropertySchema(BaseModel):
 
 
 class AssessmentAnalysisResult(BaseModel):
-    """Full analysis result"""
+    """
+    Full analysis result using the Sales Comparison Approach.
+
+    The analysis compares the subject property's total market value to
+    comparable properties in the same neighborhood to identify potential
+    over-assessments.
+
+    fairness_score interpretation (higher = FAIRER):
+    - 90-100: Fairly assessed
+    - 70-89: Slightly above comparables
+    - 50-69: Moderately above comparables (worth reviewing)
+    - 30-49: Significantly above comparables (appeal candidate)
+    - 0-29: Greatly above comparables (strong appeal candidate)
+    """
     property_id: str
     parcel_id: str
     address: Optional[str] = None
@@ -37,21 +60,27 @@ class AssessmentAnalysisResult(BaseModel):
     # Current values (dollars)
     current_market_value: Optional[float] = None
     current_assessed_value: Optional[float] = None
-    current_assessment_ratio: Optional[float] = None
+    current_assessment_ratio: Optional[float] = None  # Always ~20% for Benton County
 
     # Analysis results
-    fairness_score: int = Field(..., ge=0, le=100)
+    fairness_score: int = Field(..., ge=0, le=100, description="0-100, higher = fairer assessment")
     confidence_level: int = Field(..., ge=0, le=100)
 
     # Recommendation
     recommended_action: RecommendedAction
-    fair_assessed_value: Optional[float] = None
+    fair_assessed_value: Optional[float] = Field(None, description="What assessment SHOULD be based on comparables (dollars)")
     estimated_annual_savings: Optional[float] = None
 
     # Comparables summary
     comparable_count: int
-    median_comparable_ratio: Optional[float] = None
+    median_comparable_value: Optional[float] = Field(None, description="Median market value of comparable properties (dollars)")
     percentile_rank: Optional[int] = None
+
+    # Backward compatibility alias
+    @property
+    def median_comparable_ratio(self) -> Optional[float]:
+        """Backward compatibility - same as median_comparable_value."""
+        return self.median_comparable_value
 
     # Detailed comparables (optional)
     comparables: Optional[List[ComparablePropertySchema]] = None
