@@ -242,7 +242,7 @@ class AssessmentAnalyzer:
                 )
                 return None
 
-            # Calculate current assessment ratio
+            # Calculate current assessment ratio (for display purposes)
             current_ratio = property_data['assess_val_cents'] / property_data['total_val_cents']
 
             # Step 2: Find comparable properties
@@ -253,29 +253,69 @@ class AssessmentAnalyzer:
                 logger.warning(f"No comparables found for property {property_id}. Cannot perform fairness analysis.")
                 return None
 
-            # Extract comparable ratios for fairness scoring
-            comparable_ratios = [comp.assessment_ratio / 100.0 for comp in comparables]  # Convert % to decimal
-
-            # Step 3: Calculate fairness score
+            # Step 3: Calculate fairness score using VALUE PER ACRE comparison
+            # Since this county applies a uniform 20% assessment ratio to all properties,
+            # comparing assessment ratios is meaningless (all are ~20%).
+            # Instead, we compare total market value per acre to identify properties
+            # that may be over-valued relative to similar properties.
             logger.debug(f"Calculating fairness score for {property_id}")
+
+            # Get subject property's value per acre
+            subject_acreage = property_data.get('acreage', 0)
+            if subject_acreage and subject_acreage > 0:
+                subject_value_per_acre = property_data['total_val_cents'] / subject_acreage
+            else:
+                # Fallback: use total value directly if no acreage
+                subject_value_per_acre = property_data['total_val_cents']
+
+            # Get comparable properties' values per acre
+            comparable_values_per_acre = []
+            for comp in comparables:
+                if comp.acreage and comp.acreage > 0:
+                    comparable_values_per_acre.append(comp.total_val_cents / comp.acreage)
+                else:
+                    comparable_values_per_acre.append(comp.total_val_cents)
+
+            # Use the fairness scorer with value-per-acre instead of assessment ratios
+            # Higher value-per-acre relative to comparables = potentially over-assessed
             fairness_result = self.fairness_scorer.calculate_fairness_score(
-                subject_ratio=current_ratio,
-                comparable_ratios=comparable_ratios
+                subject_ratio=subject_value_per_acre,
+                comparable_ratios=comparable_values_per_acre
             )
 
             if not fairness_result:
                 logger.warning(f"Could not calculate fairness score for {property_id}")
                 return None
 
-            # Step 4: Estimate savings using median comparable ratio as target
+            # Step 4: Estimate savings based on value-per-acre comparison
+            # If subject's value-per-acre is higher than median, calculate what
+            # the property SHOULD be valued at based on comparable properties
             logger.debug(f"Estimating savings for {property_id}")
-            target_assessed_cents = int(property_data['total_val_cents'] * fairness_result.median_ratio)
 
-            savings_estimate = self.savings_estimator.estimate_savings(
-                current_assessed_cents=property_data['assess_val_cents'],
-                target_assessed_cents=target_assessed_cents,
-                mill_rate=self.default_mill_rate
-            )
+            # Calculate target total value based on median value-per-acre
+            median_value_per_acre = fairness_result.median_ratio  # This is now median value-per-acre
+            if subject_acreage and subject_acreage > 0:
+                target_total_val_cents = int(median_value_per_acre * subject_acreage)
+            else:
+                target_total_val_cents = int(median_value_per_acre)
+
+            # Target assessed value is 20% of target total value (county's standard rate)
+            target_assessed_cents = int(target_total_val_cents * 0.20)
+
+            # Only calculate savings if current assessment is higher than target
+            if property_data['assess_val_cents'] > target_assessed_cents:
+                savings_estimate = self.savings_estimator.estimate_savings(
+                    current_assessed_cents=property_data['assess_val_cents'],
+                    target_assessed_cents=target_assessed_cents,
+                    mill_rate=self.default_mill_rate
+                )
+            else:
+                # Property is fairly or under-assessed, no savings
+                savings_estimate = self.savings_estimator.estimate_savings(
+                    current_assessed_cents=property_data['assess_val_cents'],
+                    target_assessed_cents=property_data['assess_val_cents'],  # Same value = no savings
+                    mill_rate=self.default_mill_rate
+                )
 
             # Step 5: Determine recommendation
             recommended_action, appeal_strength = self._determine_recommendation(
@@ -580,6 +620,7 @@ class AssessmentAnalyzer:
                 ph_add AS address,
                 total_val_cents,
                 assess_val_cents,
+                acre_area,
                 ow_name AS owner_name
             FROM properties
             WHERE parcel_id = :parcel_id
@@ -600,6 +641,7 @@ class AssessmentAnalyzer:
             'address': row.address,
             'total_val_cents': int(row.total_val_cents) if row.total_val_cents else 0,
             'assess_val_cents': int(row.assess_val_cents) if row.assess_val_cents else 0,
+            'acreage': float(row.acre_area) if row.acre_area else 0,
             'owner_name': row.owner_name
         }
 
