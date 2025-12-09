@@ -37,6 +37,23 @@ router = APIRouter(prefix="/reports", tags=["Reports"])
 # Temporary storage for generated reports (in production, use S3 or similar)
 TEMP_REPORTS_DIR = tempfile.mkdtemp(prefix="taxdown_reports_")
 
+# In-memory report tracking (in production, use database)
+_generated_reports: dict = {}
+
+
+class GeneratedReportInfo:
+    """Track generated report metadata."""
+    def __init__(self, filename: str, report_type: str, format: str, portfolio_id: str = None):
+        import uuid
+        self.id = str(uuid.uuid4())
+        self.name = f"Report {filename}"
+        self.filename = filename
+        self.type = report_type
+        self.format = format
+        self.portfolio_id = portfolio_id
+        self.created_at = datetime.now().isoformat()
+        self.file_path = os.path.join(TEMP_REPORTS_DIR, filename)
+
 
 @router.post("/generate", response_model=ReportMetadata)
 async def generate_report(
@@ -100,6 +117,15 @@ async def generate_report(
         # Get file stats
         file_size = os.path.getsize(output_path)
 
+        # Track the generated report
+        report_info = GeneratedReportInfo(
+            filename=filename,
+            report_type=request.report_type.value,
+            format=request.format.value,
+            portfolio_id=request.portfolio_id
+        )
+        _generated_reports[report_info.id] = report_info
+
         return ReportMetadata(
             filename=filename,
             format=request.format.value,
@@ -114,6 +140,45 @@ async def generate_report(
         raise HTTPException(
             status_code=500, detail=f"Report generation failed: {str(e)}"
         )
+
+
+@router.get("")
+async def list_reports(api_key: str = Depends(verify_api_key)):
+    """List all generated reports."""
+    reports = []
+    for report_id, info in _generated_reports.items():
+        # Only include reports where file still exists
+        if os.path.exists(info.file_path):
+            reports.append({
+                "id": info.id,
+                "name": info.name,
+                "type": info.type,
+                "format": info.format,
+                "created_at": info.created_at,
+                "file_url": f"/api/v1/reports/download/{info.filename}"
+            })
+    return APIResponse(data=reports)
+
+
+@router.delete("/{report_id}")
+async def delete_report(report_id: str, api_key: str = Depends(verify_api_key)):
+    """Delete a generated report."""
+    if report_id not in _generated_reports:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    info = _generated_reports[report_id]
+
+    # Delete file if it exists
+    if os.path.exists(info.file_path):
+        try:
+            os.remove(info.file_path)
+        except Exception as e:
+            pass  # File may already be deleted
+
+    # Remove from tracking
+    del _generated_reports[report_id]
+
+    return {"status": "success", "message": "Report deleted"}
 
 
 @router.get("/download/{filename}")

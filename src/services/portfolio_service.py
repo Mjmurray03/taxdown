@@ -760,6 +760,12 @@ class BulkAnalysisService:
                 try:
                     analysis = self.analyzer.analyze_property(prop["parcel_id"])
                     if analysis:
+                        # Save analysis to database so it persists
+                        try:
+                            self.analyzer.save_analysis(analysis)
+                        except Exception as save_err:
+                            logger.warning(f"Failed to save analysis for {prop['parcel_id']}: {save_err}")
+
                         result.analyzed_count += 1
                         if analysis.recommended_action == "APPEAL":
                             result.appeal_candidates += 1

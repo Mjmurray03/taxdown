@@ -357,6 +357,15 @@ export interface ReportMetadata {
   total_savings?: number;
 }
 
+export interface GeneratedReport {
+  id: string;
+  name: string;
+  type: string;
+  format: string;
+  created_at: string;
+  file_url?: string;
+}
+
 // Report API
 export const reportApi = {
   generate: async (config: ReportConfig) => {
@@ -364,10 +373,20 @@ export const reportApi = {
     return response.data;
   },
 
+  list: async () => {
+    const response = await api.get<APIResponse<GeneratedReport[]>>('/reports');
+    return response.data;
+  },
+
   download: async (filename: string) => {
     const response = await api.get(`/reports/download/${filename}`, {
       responseType: 'blob'
     });
+    return response.data;
+  },
+
+  delete: async (reportId: string) => {
+    const response = await api.delete(`/reports/${reportId}`);
     return response.data;
   },
 

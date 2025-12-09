@@ -51,7 +51,7 @@ import { useDownload } from '@/lib/hooks';
 import { toast } from 'sonner';
 
 interface ReportType {
-  id: ReportConfig['type'];
+  id: ReportConfig['report_type'];
   title: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -60,45 +60,31 @@ interface ReportType {
 
 const reportTypes: ReportType[] = [
   {
-    id: 'savings-summary',
-    title: 'Savings Summary',
-    description: 'Overview of potential tax savings across all properties',
+    id: 'portfolio_summary',
+    title: 'Portfolio Summary',
+    description: 'Overview of your portfolio with potential tax savings',
     icon: DollarSign,
     badge: 'Popular',
   },
   {
-    id: 'appeal-status',
-    title: 'Appeal Status Report',
-    description: 'Track the status of all submitted appeals',
+    id: 'appeal_package',
+    title: 'Appeal Package',
+    description: 'Generate complete appeal documentation',
     icon: FileText,
     badge: null,
   },
   {
-    id: 'portfolio-analysis',
-    title: 'Portfolio Analysis',
-    description: 'Detailed analysis of portfolio performance',
+    id: 'property_analysis',
+    title: 'Property Analysis',
+    description: 'Detailed analysis of individual properties',
     icon: BarChart3,
     badge: null,
   },
   {
-    id: 'assessment-trends',
-    title: 'Assessment Trends',
-    description: 'Historical assessment trends and predictions',
-    icon: TrendingUp,
-    badge: 'New',
-  },
-  {
-    id: 'property-comparison',
-    title: 'Property Comparison',
-    description: 'Compare multiple properties side by side',
+    id: 'comparables',
+    title: 'Comparable Properties',
+    description: 'Compare properties with similar assessments',
     icon: Home,
-    badge: null,
-  },
-  {
-    id: 'tax-breakdown',
-    title: 'Tax Breakdown',
-    description: 'Detailed breakdown of tax calculations',
-    icon: PieChart,
     badge: null,
   },
 ];
@@ -111,10 +97,6 @@ export default function ReportsPage() {
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
   const [selectedReportType, setSelectedReportType] = useState<ReportType | null>(null);
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>('');
-  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
-    start: '',
-    end: '',
-  });
   const [selectedFormat, setSelectedFormat] = useState<'pdf' | 'csv' | 'xlsx'>('pdf');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
@@ -193,10 +175,8 @@ export default function ReportsPage() {
     if (!selectedReportType) return;
 
     const config: ReportConfig = {
-      type: selectedReportType.id,
+      report_type: selectedReportType.id,
       portfolio_id: selectedPortfolioId || undefined,
-      start_date: dateRange.start || undefined,
-      end_date: dateRange.end || undefined,
       format: selectedFormat,
     };
 
@@ -438,26 +418,6 @@ export default function ReportsPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            {/* Date Range */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Start Date (Optional)</Label>
-                <Input
-                  type="date"
-                  value={dateRange.start}
-                  onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>End Date (Optional)</Label>
-                <Input
-                  type="date"
-                  value={dateRange.end}
-                  onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                />
-              </div>
             </div>
 
             {/* Format Selection */}
