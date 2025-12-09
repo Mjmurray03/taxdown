@@ -185,10 +185,11 @@ export interface PortfolioDetail extends PortfolioSummary {
 }
 
 export interface TopProperty {
+  property_id: string;
   parcel_id: string;
-  address: string;
-  potential_savings: number;
-  fairness_score: number;
+  address: string | null;
+  value: number;  // The metric being ranked by (e.g., potential_savings or fairness_score)
+  metric_name: string;
 }
 
 export interface DashboardData {

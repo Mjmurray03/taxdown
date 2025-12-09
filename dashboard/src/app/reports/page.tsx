@@ -101,6 +101,7 @@ export default function ReportsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
   // Demo user ID
   const userId = 'demo-user';

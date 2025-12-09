@@ -91,13 +91,13 @@ export default function AppealsPage() {
 
   // Fetch full appeal details for viewing
   const { data: appealDetails, isLoading: loadingDetails } = useQuery<APIResponse<AppealPackage>>({
-    queryKey: ['appeal-details', selectedAppeal?.property_id],
+    queryKey: ['appeal-details', selectedAppeal?.appeal_id],
     queryFn: async () => {
-      if (!selectedAppeal?.property_id) throw new Error('No property selected');
-      // Re-generate to get full details (or could have a separate get endpoint)
-      return appealApi.generate(selectedAppeal.property_id, 'formal');
+      if (!selectedAppeal?.appeal_id) throw new Error('No appeal selected');
+      // Get existing appeal details instead of regenerating
+      return appealApi.get(selectedAppeal.appeal_id);
     },
-    enabled: !!selectedAppeal && viewDialogOpen,
+    enabled: !!selectedAppeal?.appeal_id && viewDialogOpen,
   });
 
   const formatCurrency = (value: number | null | undefined) => {

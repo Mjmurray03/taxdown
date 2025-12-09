@@ -166,12 +166,12 @@ export function DashboardPage() {
                 {dashboardData.top_savings_opportunities.map((property) => (
                   <Link
                     key={property.parcel_id}
-                    href={`/properties?parcel_id=${property.parcel_id}`}
+                    href={`/properties/${property.property_id}`}
                     className="flex items-center justify-between py-3 px-4 -mx-4 rounded-md hover:bg-[#FAFAF9] transition-standard group"
                   >
                     <div className="flex-1">
                       <p className="text-sm font-medium text-[#09090B]">
-                        {property.address}
+                        {property.address || 'Unknown Address'}
                       </p>
                       <p className="text-xs text-[#71717A] mt-0.5 tabular-nums">
                         Parcel: {property.parcel_id}
@@ -179,7 +179,7 @@ export function DashboardPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-mono tabular-nums text-[#09090B]">
-                        {formatCurrency(property.potential_savings)}
+                        {formatCurrency(property.value)}
                       </p>
                       <ArrowRight className="h-4 w-4 text-[#71717A] group-hover:text-[#18181B] transition-standard" />
                     </div>
