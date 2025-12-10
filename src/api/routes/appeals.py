@@ -137,23 +137,43 @@ async def generate_appeal(
         generator.config = config
 
         # Generate appeal
+        logger.info(f"Starting appeal generation for parcel_id={parcel_id}")
         package = generator.generate_appeal(parcel_id)
 
         if not package:
-            raise HTTPException(
-                status_code=422,
-                detail="Property does not qualify for appeal (score > 60 means fairly assessed, or insufficient comparables)"
-            )
+            # Try to get more info about why it failed
+            analyzer = generator.analyzer
+            analysis = analyzer.analyze_property(parcel_id)
+            if analysis:
+                logger.warning(f"Appeal generation returned None for {parcel_id} with score={analysis.fairness_score}")
+                if analysis.fairness_score > 60:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"Property does not qualify for appeal. Fairness score is {analysis.fairness_score}/100 (score > 60 means fairly assessed)."
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"Appeal generation failed. Property has score {analysis.fairness_score}/100 but generation returned no result. This may be due to missing comparable properties."
+                    )
+            else:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Property could not be analyzed. This usually means no comparable properties were found in the same area."
+                )
 
         response = _package_to_response(package)
+        logger.info(f"Appeal generated successfully for {parcel_id}")
         return APIResponse(data=response)
 
     except HTTPException:
         raise
     except ValueError as e:
+        logger.error(f"ValueError in appeal generation for {parcel_id}: {e}")
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        logger.error(f"Appeal generation failed for {parcel_id}: {e}")
+        import traceback
+        logger.error(f"Appeal generation failed for {parcel_id}: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Appeal generation failed: {str(e)}")
 
 

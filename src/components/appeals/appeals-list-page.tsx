@@ -81,13 +81,13 @@ export function AppealsListPage() {
                   <TableHead>Parcel ID</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Generated</TableHead>
-                  <TableHead>Deadline</TableHead>
+                  <TableHead>Est. Savings</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {appeals.map((appeal) => (
-                  <TableRow key={appeal.id}>
+                  <TableRow key={appeal.appeal_id}>
                     <TableCell className="font-medium">
                       {appeal.address || 'N/A'}
                     </TableCell>
@@ -100,18 +100,18 @@ export function AppealsListPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {appeal.created_at
-                        ? format(parseISO(appeal.created_at), 'MMM d, yyyy')
+                      {appeal.generated_at
+                        ? format(parseISO(appeal.generated_at), 'MMM d, yyyy')
                         : 'N/A'}
                     </TableCell>
                     <TableCell>
-                      {appeal.filing_deadline
-                        ? format(parseISO(appeal.filing_deadline), 'MMM d, yyyy')
+                      {appeal.estimated_savings
+                        ? `$${appeal.estimated_savings.toLocaleString()}`
                         : 'N/A'}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Link href={`/appeals/${appeal.id}`}>
+                        <Link href={`/appeals/${appeal.appeal_id}`}>
                           <Button variant="ghost" size="sm">
                             <Eye className="h-4 w-4" />
                           </Button>

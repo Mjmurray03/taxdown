@@ -561,12 +561,12 @@ function PropertyDetailPageContent() {
                           <p className="text-sm text-[#71717A] mt-1">Professional legal tone</p>
                         </button>
                         <button
-                          onClick={() => appealMutation.mutate('persuasive')}
+                          onClick={() => appealMutation.mutate('detailed')}
                           disabled={appealMutation.isPending}
                           className="p-6 border border-[#E4E4E7] rounded-lg text-left hover:border-[#18181B] hover:bg-[#FAFAF9] transition-standard"
                         >
-                          <p className="font-medium text-[#09090B]">Persuasive</p>
-                          <p className="text-sm text-[#71717A] mt-1">Compelling narrative</p>
+                          <p className="font-medium text-[#09090B]">Detailed</p>
+                          <p className="text-sm text-[#71717A] mt-1">Comprehensive analysis</p>
                         </button>
                       </div>
                     </div>

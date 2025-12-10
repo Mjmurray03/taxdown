@@ -213,12 +213,12 @@ export function AppealGeneratePage({ propertyId }: AppealGeneratePageProps) {
                       variant="ghost"
                       size="sm"
                       className="absolute top-2 right-2"
-                      onClick={() => copyToClipboard(generatedAppeal.letter_content)}
+                      onClick={() => copyToClipboard(generatedAppeal.appeal_letter)}
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                     <div className="prose max-w-none p-4 bg-gray-50 rounded-lg whitespace-pre-wrap font-mono text-sm">
-                      {generatedAppeal.letter_content}
+                      {generatedAppeal.appeal_letter}
                     </div>
                   </div>
                 </TabsContent>
