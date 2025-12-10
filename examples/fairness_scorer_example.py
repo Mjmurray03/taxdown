@@ -2,7 +2,17 @@
 Example usage of the FairnessScorer service
 
 This demonstrates how to use the fairness scorer to evaluate
-property tax assessment fairness.
+property tax assessment fairness using the SALES COMPARISON APPROACH.
+
+NEW SCORING (inverted from original):
+- Higher score = FAIRER (less likely over-assessed)
+- Lower score = more over-assessed (appeal candidate)
+
+Score interpretation:
+- 70-100: Fairly assessed (at or below comparable median)
+- 50-69: Slightly over-assessed
+- 30-49: Moderately over-assessed (appeal candidate)
+- 0-29: Significantly over-assessed (strong appeal candidate)
 """
 
 import sys
@@ -15,36 +25,40 @@ from src.services.fairness_scorer import FairnessScorer
 
 
 def main():
-    print("Fairness Scorer Examples")
+    print("Fairness Scorer Examples - Sales Comparison Approach")
     print("=" * 80)
 
-    scorer = FairnessScorer()
+    scorer = FairnessScorer(mill_rate=65.0)  # Benton County mill rate
 
     # Example 1: Single property evaluation
     print("\nExample 1: Evaluating a Single Property")
     print("-" * 80)
 
-    # Property has assessed/total ratio of 0.95
-    subject_ratio = 0.95
+    # Property has total market value of $350,000
+    subject_value = 35000000  # cents
 
-    # Comparable properties have these ratios
-    comparable_ratios = [
-        0.78, 0.81, 0.83, 0.85, 0.87, 0.88, 0.90, 0.91, 0.93, 0.94
+    # Comparable properties have these market values
+    comparable_values = [
+        28000000, 29000000, 30000000, 31000000, 32000000,  # $280k-$320k
+        33000000, 34000000, 35000000, 36000000, 37000000   # $330k-$370k
     ]
 
-    result = scorer.calculate_fairness_score(subject_ratio, comparable_ratios)
+    result = scorer.calculate_fairness_score(subject_value, comparable_values)
 
-    print(f"\nYour Property Assessment Ratio: {result.subject_ratio:.2%}")
-    print(f"Median Comparable Ratio: {result.median_ratio:.2%}")
-    print(f"\nFairness Score: {result.fairness_score}/100")
+    print(f"\nYour Property Market Value: ${result.subject_value / 100:,.2f}")
+    print(f"Median Comparable Value: ${result.median_value / 100:,.2f}")
+    print(f"\nFairness Score: {result.fairness_score}/100 (higher = fairer)")
     print(f"Interpretation: {result.interpretation}")
     print(f"Recommendation: {result.get_recommendation()}")
     print(f"\nStatistical Details:")
     print(f"  - Z-Score: {result.z_score:.2f}")
     print(f"  - Percentile: {result.percentile:.1f}th")
-    print(f"  - Standard Deviation: {result.std_deviation:.4f}")
+    print(f"  - Standard Deviation: ${result.std_deviation / 100:,.2f}")
     print(f"  - Confidence: {result.confidence}/100")
     print(f"  - Comparables Used: {result.comparable_count}")
+    if result.over_assessment_cents > 0:
+        print(f"  - Potential Over-assessment: ${result.over_assessment_cents / 100:,.2f}")
+        print(f"  - Potential Annual Savings: ${result.potential_annual_savings_cents / 100:,.2f}")
 
     # Example 2: Comparing multiple properties
     print("\n\nExample 2: Batch Analysis of Multiple Properties")
@@ -53,43 +67,45 @@ def main():
     properties = [
         {
             'name': '123 Oak Street',
-            'subject_ratio': 0.85,
-            'comparable_ratios': [0.80, 0.82, 0.83, 0.84, 0.86, 0.87, 0.88]
+            'subject_value': 30000000,  # $300k - at median
+            'comparable_values': [28000000, 29000000, 30000000, 31000000, 32000000]
         },
         {
             'name': '456 Maple Avenue',
-            'subject_ratio': 1.05,
-            'comparable_ratios': [0.80, 0.82, 0.83, 0.84, 0.86, 0.87, 0.88]
+            'subject_value': 45000000,  # $450k - significantly above median
+            'comparable_values': [28000000, 29000000, 30000000, 31000000, 32000000]
         },
         {
             'name': '789 Pine Road',
-            'subject_ratio': 0.72,
-            'comparable_ratios': [0.80, 0.82, 0.83, 0.84, 0.86, 0.87, 0.88]
+            'subject_value': 25000000,  # $250k - below median (great for taxpayer!)
+            'comparable_values': [28000000, 29000000, 30000000, 31000000, 32000000]
         }
     ]
 
     for prop in properties:
         result = scorer.calculate_fairness_score(
-            prop['subject_ratio'],
-            prop['comparable_ratios']
+            prop['subject_value'],
+            prop['comparable_values']
         )
 
         print(f"\n{prop['name']}:")
-        print(f"  Ratio: {result.subject_ratio:.2%} (vs median {result.median_ratio:.2%})")
+        print(f"  Market Value: ${result.subject_value / 100:,.2f} (median: ${result.median_value / 100:,.2f})")
         print(f"  Fairness Score: {result.fairness_score}/100")
         print(f"  Status: {result.interpretation}")
         print(f"  Action: {result.get_recommendation()}")
+        if result.potential_annual_savings_cents > 0:
+            print(f"  Potential Savings: ${result.potential_annual_savings_cents / 100:,.2f}/year")
 
-    # Example 3: Understanding score ranges
+    # Example 3: Understanding score ranges (NEW INVERTED SCORING)
     print("\n\nExample 3: Understanding Fairness Score Ranges")
     print("-" * 80)
+    print("\nNEW SCORING: Higher score = FAIRER (less over-assessed)")
 
     score_ranges = [
-        (0, 20, "Under-assessed", "Paying less than fair share"),
-        (21, 40, "Fairly assessed", "No action needed"),
-        (41, 60, "Slightly over-assessed", "Monitor situation"),
-        (61, 80, "Significantly over-assessed", "Appeal recommended"),
-        (81, 100, "Severely over-assessed", "Strong appeal case")
+        (70, 100, "Fairly assessed", "At or below comparable median - no action needed"),
+        (50, 69, "Slightly over-assessed", "Somewhat above comparables - monitor"),
+        (30, 49, "Moderately over-assessed", "Appeal candidate - worth reviewing"),
+        (0, 29, "Significantly over-assessed", "Strong appeal candidate")
     ]
 
     print("\nScore Range Interpretations:")
@@ -100,12 +116,13 @@ def main():
     print("\n\nExample 4: Export Result as Dictionary")
     print("-" * 80)
 
-    result = scorer.calculate_fairness_score(0.95, [0.80, 0.82, 0.85, 0.88, 0.90])
     result_dict = result.to_dict()
-
-    print("\nJSON-serializable result:")
-    import json
-    print(json.dumps(result_dict, indent=2))
+    print("\nResult dictionary keys:")
+    for key, value in result_dict.items():
+        if isinstance(value, float):
+            print(f"  {key}: {value:.4f}")
+        else:
+            print(f"  {key}: {value}")
 
 
 if __name__ == "__main__":

@@ -451,14 +451,14 @@ function PropertyDetailPageContent() {
                     ))}
                   </div>
 
-                  {analysisData.median_comparable_ratio && (
+                  {analysisData.median_comparable_value && (
                     <div className="mt-6 p-4 bg-[#FAFAF9] rounded-lg">
                       <p className="text-sm text-[#71717A]">
-                        <span className="font-medium text-[#09090B]">Median Assessment Ratio:</span>{' '}
-                        {(analysisData.median_comparable_ratio * 100).toFixed(1)}%
+                        <span className="font-medium text-[#09090B]">Median Comparable Value:</span>{' '}
+                        ${analysisData.median_comparable_value.toLocaleString()}
                       </p>
                       <p className="text-xs text-[#71717A] mt-1">
-                        This property's ratio: {((analysisData.current_assessment_ratio ?? 0) * 100).toFixed(1)}%
+                        This property's value: ${(analysisData.current_market_value ?? 0).toLocaleString()}
                       </p>
                     </div>
                   )}

@@ -229,66 +229,75 @@ class TestPropertyCriteriaValidation:
 # ============================================================================
 
 class TestFairnessScorer:
-    """Test FairnessScorer calculations."""
+    """
+    Test FairnessScorer calculations.
+
+    NEW API: Uses market VALUES (in cents), not ratios.
+    NEW SCORING: Higher score = FAIRER (less likely over-assessed).
+
+    Score interpretation:
+    - 70-100: Fairly assessed (at or below comparable median)
+    - 50-69: Slightly over-assessed
+    - 30-49: Moderately over-assessed (appeal candidate)
+    - 0-29: Significantly over-assessed (strong appeal candidate)
+    """
 
     def test_fairly_assessed_property(self, fairness_scorer):
-        """Test property with ratio equal to median (fairly assessed)."""
-        comparable_ratios = [0.18, 0.19, 0.20, 0.20, 0.21, 0.22]
-        subject_ratio = 0.20  # Equal to median
+        """Test property with value equal to median (fairly assessed)."""
+        # All properties valued around $200,000
+        comparable_values = [18000000, 19000000, 20000000, 20000000, 21000000, 22000000]  # cents
+        subject_value = 20000000  # $200,000 - equal to median
 
         result = fairness_scorer.calculate_fairness_score(
-            subject_ratio=subject_ratio,
-            comparable_ratios=comparable_ratios
+            subject_value=subject_value,
+            comparable_values=comparable_values
         )
 
         assert result is not None
-        assert 21 <= result.fairness_score <= 40  # Fair range
+        assert result.fairness_score >= 70  # Fair range (higher = fairer)
         assert result.interpretation == "FAIR"
-        assert result.subject_ratio == 0.20
-        assert result.median_ratio == 0.20
+        assert result.subject_value == 20000000
         assert abs(result.z_score) < 0.5  # Close to median
 
     def test_over_assessed_property(self, fairness_scorer):
-        """Test property with ratio significantly above median."""
-        comparable_ratios = [0.18, 0.19, 0.20, 0.20, 0.21, 0.22]
-        median = statistics.median(comparable_ratios)
-        subject_ratio = median * 1.3  # 30% above median
+        """Test property with value significantly above median (over-assessed)."""
+        comparable_values = [18000000, 19000000, 20000000, 20000000, 21000000, 22000000]  # cents
+        subject_value = 30000000  # $300,000 - 50% above median (over-assessed)
 
         result = fairness_scorer.calculate_fairness_score(
-            subject_ratio=subject_ratio,
-            comparable_ratios=comparable_ratios
+            subject_value=subject_value,
+            comparable_values=comparable_values
         )
 
         assert result is not None
-        assert result.fairness_score >= 41  # Over-assessed range
+        assert result.fairness_score < 70  # Over-assessed range (lower = more over-assessed)
         assert result.interpretation == "OVER_ASSESSED"
         assert result.z_score > 0  # Above median
 
     def test_under_assessed_property(self, fairness_scorer):
-        """Test property with ratio significantly below median."""
-        comparable_ratios = [0.18, 0.19, 0.20, 0.20, 0.21, 0.22]
-        median = statistics.median(comparable_ratios)
-        subject_ratio = median * 0.7  # 30% below median
+        """Test property with value significantly below median (under-assessed = fair from taxpayer view)."""
+        comparable_values = [18000000, 19000000, 20000000, 20000000, 21000000, 22000000]  # cents
+        subject_value = 14000000  # $140,000 - 30% below median
 
         result = fairness_scorer.calculate_fairness_score(
-            subject_ratio=subject_ratio,
-            comparable_ratios=comparable_ratios
+            subject_value=subject_value,
+            comparable_values=comparable_values
         )
 
         assert result is not None
-        assert result.fairness_score <= 20  # Under-assessed range
-        assert result.interpretation == "UNDER_ASSESSED"
+        # Under-assessed means property value is BELOW comparables = very fair from taxpayer view
+        assert result.fairness_score >= 70  # High score = fairer
         assert result.z_score < 0  # Below median
 
     def test_confidence_with_many_comparables(self, fairness_scorer):
         """Test that confidence is high with many consistent comparables."""
-        # 20 comparables with low variance
-        comparable_ratios = [0.20] * 15 + [0.19, 0.19, 0.21, 0.21, 0.20]
-        subject_ratio = 0.25
+        # 20 comparables with low variance (all around $200k)
+        comparable_values = [20000000] * 15 + [19000000, 19000000, 21000000, 21000000, 20000000]
+        subject_value = 25000000  # $250,000
 
         result = fairness_scorer.calculate_fairness_score(
-            subject_ratio=subject_ratio,
-            comparable_ratios=comparable_ratios
+            subject_value=subject_value,
+            comparable_values=comparable_values
         )
 
         assert result is not None
@@ -298,139 +307,132 @@ class TestFairnessScorer:
     def test_confidence_with_few_comparables(self, fairness_scorer):
         """Test that confidence is lower with few comparables."""
         # Only 3 comparables
-        comparable_ratios = [0.18, 0.20, 0.22]
-        subject_ratio = 0.25
+        comparable_values = [18000000, 20000000, 22000000]
+        subject_value = 25000000
 
         result = fairness_scorer.calculate_fairness_score(
-            subject_ratio=subject_ratio,
-            comparable_ratios=comparable_ratios
+            subject_value=subject_value,
+            comparable_values=comparable_values
         )
 
         assert result is not None
-        assert result.confidence <= 55  # Low confidence with <3 comparables
+        assert result.confidence <= 55  # Low confidence with few comparables
         assert result.comparable_count == 3
 
     def test_edge_case_no_comparables(self, fairness_scorer):
         """Test that None is returned when no comparables provided."""
         result = fairness_scorer.calculate_fairness_score(
-            subject_ratio=0.20,
-            comparable_ratios=[]
+            subject_value=20000000,
+            comparable_values=[]
         )
 
         assert result is None
 
-    def test_edge_case_zero_subject_ratio(self, fairness_scorer):
-        """Test that None is returned for zero subject ratio."""
-        comparable_ratios = [0.18, 0.19, 0.20, 0.21, 0.22]
+    def test_edge_case_zero_subject_value(self, fairness_scorer):
+        """Test that None is returned for zero subject value."""
+        comparable_values = [18000000, 19000000, 20000000, 21000000, 22000000]
 
         result = fairness_scorer.calculate_fairness_score(
-            subject_ratio=0.0,
-            comparable_ratios=comparable_ratios
+            subject_value=0,
+            comparable_values=comparable_values
         )
 
         assert result is None
 
     def test_edge_case_all_invalid_comparables(self, fairness_scorer):
-        """Test handling of all invalid comparable ratios."""
-        comparable_ratios = [0.0, -0.1, 0.0, -0.5]  # All invalid
+        """Test handling of all invalid comparable values."""
+        comparable_values = [0, -100, 0, -500]  # All invalid
 
         result = fairness_scorer.calculate_fairness_score(
-            subject_ratio=0.20,
-            comparable_ratios=comparable_ratios
+            subject_value=20000000,
+            comparable_values=comparable_values
         )
 
         assert result is None
 
     def test_z_score_to_fairness_conversion(self, fairness_scorer):
         """Test z-score to fairness score conversion formula."""
-        comparable_ratios = [0.20] * 10
-        std_dev = 0.01  # Small std dev
+        # All same value = subject at median
+        comparable_values = [20000000] * 10
 
-        # Test z=0 (at median) should give fairness around 30
+        # Test z=0 (at median) should give high fairness score (fair)
         result_median = fairness_scorer.calculate_fairness_score(
-            subject_ratio=0.20,
-            comparable_ratios=comparable_ratios
+            subject_value=20000000,
+            comparable_values=comparable_values
         )
-        assert 25 <= result_median.fairness_score <= 35
+        assert result_median.fairness_score >= 70  # At median = fair
 
-        # Test z≈+2 (2 std devs above) should give fairness around 80
+        # Test significantly above median = lower score (over-assessed)
         result_high = fairness_scorer.calculate_fairness_score(
-            subject_ratio=0.22,  # 2 std devs above if std=0.01
-            comparable_ratios=comparable_ratios
+            subject_value=30000000,  # 50% above median
+            comparable_values=comparable_values
         )
-        assert result_high.fairness_score >= 60
+        assert result_high.fairness_score < 70  # Above median = over-assessed
 
     def test_percentile_calculation(self, fairness_scorer):
         """Test percentile calculation accuracy."""
-        comparable_ratios = [0.10, 0.15, 0.20, 0.25, 0.30]
+        comparable_values = [10000000, 15000000, 20000000, 25000000, 30000000]
 
         # Subject at 50th percentile (median)
         result_50th = fairness_scorer.calculate_fairness_score(
-            subject_ratio=0.20,
-            comparable_ratios=comparable_ratios
+            subject_value=20000000,
+            comparable_values=comparable_values
         )
         assert 40 <= result_50th.percentile <= 60
 
-        # Subject at high percentile
+        # Subject at high percentile (above most comparables)
         result_90th = fairness_scorer.calculate_fairness_score(
-            subject_ratio=0.28,
-            comparable_ratios=comparable_ratios
+            subject_value=28000000,
+            comparable_values=comparable_values
         )
         assert result_90th.percentile >= 80
 
     def test_fairness_result_to_dict(self, fairness_scorer):
         """Test FairnessResult to_dict serialization."""
-        comparable_ratios = [0.18, 0.19, 0.20, 0.21, 0.22]
-        subject_ratio = 0.20
+        comparable_values = [18000000, 19000000, 20000000, 21000000, 22000000]
+        subject_value = 20000000
 
         result = fairness_scorer.calculate_fairness_score(
-            subject_ratio=subject_ratio,
-            comparable_ratios=comparable_ratios
+            subject_value=subject_value,
+            comparable_values=comparable_values
         )
 
         result_dict = result.to_dict()
 
         assert "fairness_score" in result_dict
-        assert "subject_ratio" in result_dict
-        assert "median_ratio" in result_dict
+        assert "subject_value_cents" in result_dict
+        assert "median_value_cents" in result_dict
         assert "confidence" in result_dict
         assert "interpretation" in result_dict
         assert isinstance(result_dict["fairness_score"], int)
 
     def test_get_recommendation(self, fairness_scorer):
         """Test recommendation generation based on fairness score."""
-        comparable_ratios = [0.20] * 5
+        # Base comparable values around $200k
+        comparable_values = [20000000] * 5
 
-        # Test strong appeal case (score >= 81)
+        # Test strong appeal case (score <= 29, significantly above comparables)
         result_strong = fairness_scorer.calculate_fairness_score(
-            subject_ratio=0.30,
-            comparable_ratios=comparable_ratios
+            subject_value=40000000,  # $400k - double the comparables
+            comparable_values=comparable_values
         )
-        if result_strong.fairness_score >= 81:
+        if result_strong.fairness_score <= 29:
             assert result_strong.get_recommendation() == "STRONG_APPEAL_RECOMMENDED"
 
-        # Test moderate appeal case (score 61-80)
-        result_moderate = fairness_scorer.calculate_fairness_score(
-            subject_ratio=0.24,
-            comparable_ratios=comparable_ratios
+        # Test appeal case (score 30-49)
+        result_appeal = fairness_scorer.calculate_fairness_score(
+            subject_value=30000000,  # $300k - 50% above comparables
+            comparable_values=comparable_values
         )
-        if 61 <= result_moderate.fairness_score < 81:
-            assert result_moderate.get_recommendation() == "APPEAL_RECOMMENDED"
+        if 30 <= result_appeal.fairness_score <= 49:
+            assert result_appeal.get_recommendation() in ["STRONG_APPEAL_RECOMMENDED", "APPEAL_RECOMMENDED"]
 
-        # Test monitor case (score 41-60)
-        result_monitor = fairness_scorer.calculate_fairness_score(
-            subject_ratio=0.22,
-            comparable_ratios=comparable_ratios
-        )
-        if 41 <= result_monitor.fairness_score < 61:
-            assert result_monitor.get_recommendation() == "MONITOR"
-
-        # Test no action case (score 21-40)
+        # Test no action case (score >= 70, at or below comparables)
         result_fair = fairness_scorer.calculate_fairness_score(
-            subject_ratio=0.20,
-            comparable_ratios=comparable_ratios
+            subject_value=20000000,  # Equal to comparables
+            comparable_values=comparable_values
         )
-        if 21 <= result_fair.fairness_score <= 40:
+        if result_fair.fairness_score >= 70:
             assert result_fair.get_recommendation() == "NO_ACTION_NEEDED"
 
 
@@ -716,7 +718,7 @@ class TestAssessmentAnalyzer:
             confidence=85,
             interpretation="FAIR",
             comparable_count=10,
-            median_comparable_ratio=0.20,
+            median_comparable_value_cents=sample_property["total_val_cents"],  # Median comparable market value in cents
             estimated_annual_savings_cents=0,
             estimated_five_year_savings_cents=0,
             recommended_action="NONE",

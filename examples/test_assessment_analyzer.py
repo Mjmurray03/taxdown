@@ -137,7 +137,7 @@ def test_find_appeal_candidates():
             print(f"    5-Year Savings: ${candidate.estimated_five_year_savings_dollars:,.2f}")
             print(f"    Comparables: {candidate.comparable_count} properties")
     else:
-        print("No appeal candidates found with score >= 60")
+        print("No appeal candidates found with score <= 60 (lower score = more over-assessed)")
 
 
 def test_recommendation_scenarios():
@@ -183,8 +183,8 @@ def test_recommendation_scenarios():
         print(f"\nExample OVER-ASSESSED property:")
         prop = over_assessed[0]
         print(f"  {prop.parcel_id} - {prop.address}")
-        print(f"  Your ratio: {prop.current_ratio:.2%}")
-        print(f"  Typical ratio: {prop.median_comparable_ratio:.2%}")
+        print(f"  Your market value: ${prop.total_val_cents / 100:,.2f}")
+        print(f"  Median comparable value: ${prop.median_comparable_value_cents / 100:,.2f}")
         print(f"  Fairness Score: {prop.fairness_score}")
         print(f"  Recommendation: {prop.recommended_action}")
 
@@ -192,8 +192,8 @@ def test_recommendation_scenarios():
         print(f"\nExample FAIR property:")
         prop = fair[0]
         print(f"  {prop.parcel_id} - {prop.address}")
-        print(f"  Your ratio: {prop.current_ratio:.2%}")
-        print(f"  Typical ratio: {prop.median_comparable_ratio:.2%}")
+        print(f"  Your market value: ${prop.total_val_cents / 100:,.2f}")
+        print(f"  Median comparable value: ${prop.median_comparable_value_cents / 100:,.2f}")
         print(f"  Fairness Score: {prop.fairness_score}")
         print(f"  Recommendation: {prop.recommended_action}")
 
@@ -201,8 +201,8 @@ def test_recommendation_scenarios():
         print(f"\nExample UNDER-ASSESSED property:")
         prop = under_assessed[0]
         print(f"  {prop.parcel_id} - {prop.address}")
-        print(f"  Your ratio: {prop.current_ratio:.2%}")
-        print(f"  Typical ratio: {prop.median_comparable_ratio:.2%}")
+        print(f"  Your market value: ${prop.total_val_cents / 100:,.2f}")
+        print(f"  Median comparable value: ${prop.median_comparable_value_cents / 100:,.2f}")
         print(f"  Fairness Score: {prop.fairness_score}")
         print(f"  Recommendation: {prop.recommended_action}")
 

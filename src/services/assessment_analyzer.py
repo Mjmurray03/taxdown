@@ -117,7 +117,7 @@ class AssessmentAnalysis:
             'confidence': self.confidence,
             'interpretation': self.interpretation,
             'comparable_count': self.comparable_count,
-            'median_comparable_ratio': round(self.median_comparable_ratio, 4),
+            'median_comparable_value_cents': self.median_comparable_value_cents,
             'estimated_annual_savings_cents': self.estimated_annual_savings_cents,
             'estimated_five_year_savings_cents': self.estimated_five_year_savings_cents,
             'recommended_action': self.recommended_action,
@@ -159,7 +159,7 @@ class AssessmentAnalysis:
             f"  Score: {self.fairness_score}/100 ({self.interpretation})\n"
             f"  Confidence: {self.confidence}/100\n"
             f"  Comparables: {self.comparable_count} properties\n"
-            f"  Median Ratio: {self.median_comparable_ratio:.2%}\n"
+            f"  Median Comparable Value: ${self.median_comparable_value_cents / 100:,.2f}\n"
             f"\n"
             f"Potential Savings:\n"
             f"  Annual: ${self.estimated_annual_savings_dollars:,.2f}\n"
@@ -552,7 +552,7 @@ class AssessmentAnalyzer:
                 'total_val_cents': analysis.total_val_cents,
                 'assess_val_cents': analysis.assess_val_cents,
                 'current_ratio': analysis.current_ratio,
-                'median_comparable_ratio': analysis.median_comparable_ratio,
+                'median_comparable_value_cents': analysis.median_comparable_value_cents,
                 'interpretation': analysis.interpretation,
                 'appeal_strength': analysis.appeal_strength,
                 'estimated_five_year_savings_cents': analysis.estimated_five_year_savings_cents
@@ -635,18 +635,12 @@ class AssessmentAnalyzer:
         savings_cents: int
     ) -> tuple[str, Optional[str]]:
         """
-        Determine appeal recommendation based on analysis results.
+        DEPRECATED: Use _determine_recommendation_v2 instead.
 
-        Recommendation Logic:
-        - STRONG APPEAL: fairness >= 70, confidence >= 60, savings >= $500/year
-        - MODERATE APPEAL: fairness >= 60, savings >= $250/year
-        - WEAK MONITOR: fairness >= 50
-        - NO ACTION: fairness < 50
+        This function uses the OLD scoring logic where higher score = more over-assessed.
+        The new scoring logic (v2) is inverted: higher score = FAIRER.
 
-        Args:
-            fairness_score: Fairness score (0-100)
-            confidence: Confidence score (0-100)
-            savings_cents: Estimated annual savings in cents
+        This function is kept for backward compatibility but should not be used.
 
         Returns:
             Tuple of (recommended_action, appeal_strength)
@@ -804,10 +798,11 @@ if __name__ == "__main__":
                     # Additional insights
                     print("DETAILED INSIGHTS:")
                     print("-" * 80)
-                    print(f"Assessment Comparison:")
-                    print(f"  Your ratio: {analysis.current_ratio:.2%}")
-                    print(f"  Typical ratio: {analysis.median_comparable_ratio:.2%}")
-                    print(f"  Difference: {(analysis.current_ratio - analysis.median_comparable_ratio):.2%}")
+                    print(f"Market Value Comparison:")
+                    print(f"  Your market value: ${analysis.total_val_cents / 100:,.2f}")
+                    print(f"  Median comparable value: ${analysis.median_comparable_value_cents / 100:,.2f}")
+                    value_diff = analysis.total_val_cents - analysis.median_comparable_value_cents
+                    print(f"  Difference: ${value_diff / 100:,.2f}")
                     print()
 
                     if analysis.recommended_action == "APPEAL":

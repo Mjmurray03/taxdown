@@ -145,11 +145,13 @@ class AppealGenerator:
                 logger.warning(f"Property {property_id} could not be analyzed (insufficient data)")
                 return None
 
-            # Step 2: Validate property qualifies (score >= 50)
-            if analysis.fairness_score < 50:
+            # Step 2: Validate property qualifies for appeal
+            # NEW SCORING: higher score = FAIRER, so appeal candidates have LOWER scores
+            # Score <= 60 indicates property is over-assessed relative to comparables
+            if analysis.fairness_score > 60:
                 logger.info(
                     f"Property {property_id} does not qualify for appeal "
-                    f"(fairness_score={analysis.fairness_score} < 50)"
+                    f"(fairness_score={analysis.fairness_score} > 60, property is fairly assessed)"
                 )
                 return None
 
@@ -160,9 +162,11 @@ class AppealGenerator:
             comparables = self._get_comparable_summaries(property_id, limit=10)
 
             # Step 5: Calculate target values
-            target_ratio = analysis.median_comparable_ratio
-            requested_assessed_cents = int(analysis.total_val_cents * target_ratio)
-            reduction_cents = analysis.assess_val_cents - requested_assessed_cents
+            # median_comparable_value_cents is the median MARKET value of comparables
+            # Fair assessed value = median market value * 0.20 (Arkansas assessment ratio)
+            median_market_value_cents = analysis.median_comparable_value_cents
+            requested_assessed_cents = int(median_market_value_cents * 0.20) if median_market_value_cents else analysis.assess_val_cents
+            reduction_cents = max(0, analysis.assess_val_cents - requested_assessed_cents)
 
             # Step 6: Generate appeal content
             appeal_letter = self._generate_letter(analysis, property_data, cfg)
@@ -183,10 +187,10 @@ class AppealGenerator:
                 current_total_value_cents=analysis.total_val_cents,
                 current_assessment_ratio=analysis.current_ratio,
 
-                # Requested values
+                # Requested values (based on median comparable market value)
                 requested_assessed_value_cents=requested_assessed_cents,
-                requested_total_value_cents=analysis.total_val_cents,
-                target_assessment_ratio=target_ratio,
+                requested_total_value_cents=median_market_value_cents if median_market_value_cents else analysis.total_val_cents,
+                target_assessment_ratio=0.20,  # Arkansas standard assessment ratio
 
                 # Savings
                 estimated_annual_savings_cents=analysis.estimated_annual_savings_cents,
@@ -361,7 +365,9 @@ class AppealGenerator:
 
         # Format values
         current_val = f"${analysis.assess_val_cents / 100:,.2f}"
-        requested_cents = int(analysis.total_val_cents * analysis.median_comparable_ratio)
+        # Calculate fair assessed value: median comparable market value * 0.20
+        median_market_cents = analysis.median_comparable_value_cents
+        requested_cents = int(median_market_cents * 0.20) if median_market_cents else analysis.assess_val_cents
         requested_val = f"${requested_cents / 100:,.2f}"
         savings = f"${analysis.estimated_annual_savings_cents / 100:,.2f}"
         owner_name = property_data.get('owner_name', '[Property Owner]')
@@ -390,6 +396,12 @@ class AppealGenerator:
         config: GeneratorConfig
     ) -> str:
         """Generate formal style appeal letter."""
+        # Calculate value difference for the letter
+        subject_market_value = analysis.total_val_cents / 100
+        median_comparable_value = analysis.median_comparable_value_cents / 100 if analysis.median_comparable_value_cents else subject_market_value
+        value_difference = subject_market_value - median_comparable_value
+        value_diff_pct = (value_difference / median_comparable_value * 100) if median_comparable_value > 0 else 0
+
         return f"""{today.strftime('%B %d, %Y')}
 
 {config.jurisdiction}
@@ -406,7 +418,7 @@ I am writing to formally appeal the current assessed value of my property at the
 
 GROUNDS FOR APPEAL
 
-Based on an analysis of {analysis.comparable_count} comparable properties in Benton County, the typical assessment ratio is {analysis.median_comparable_ratio:.1%} of market value. My property is currently assessed at {analysis.current_ratio:.1%}, which is {(analysis.current_ratio - analysis.median_comparable_ratio) * 100:.1f} percentage points higher than comparable properties.
+Based on an analysis of {analysis.comparable_count} comparable properties in Benton County, my property's current market value of ${subject_market_value:,.2f} is ${value_difference:,.2f} ({value_diff_pct:.1f}%) higher than the median market value of comparable properties (${median_comparable_value:,.2f}).
 
 Our statistical analysis indicates:
 - Fairness Score: {analysis.fairness_score}/100 ({analysis.interpretation})
@@ -439,6 +451,12 @@ Respectfully,
         """Generate detailed style appeal letter."""
         five_year_savings = f"${analysis.estimated_five_year_savings_cents / 100:,.2f}"
 
+        # Calculate value comparisons
+        subject_market_value = analysis.total_val_cents / 100
+        median_comparable_value = analysis.median_comparable_value_cents / 100 if analysis.median_comparable_value_cents else subject_market_value
+        value_difference = subject_market_value - median_comparable_value
+        value_diff_pct = (value_difference / median_comparable_value * 100) if median_comparable_value > 0 else 0
+
         return f"""{today.strftime('%B %d, %Y')}
 
 {config.jurisdiction}
@@ -459,26 +477,26 @@ I am writing to formally appeal the current assessed value of my property locate
 
 STATEMENT OF FACTS
 
-The current assessment places my property at an assessment ratio of {analysis.current_ratio:.2%} of total market value (${analysis.total_val_cents / 100:,.2f}). However, a comprehensive analysis of {analysis.comparable_count} comparable properties in Benton County reveals that the typical assessment ratio for similar properties is {analysis.median_comparable_ratio:.2%}.
+Using the sales comparison approach, a comprehensive analysis of {analysis.comparable_count} comparable properties in Benton County reveals that the median market value for similar properties is ${median_comparable_value:,.2f}. My property is currently valued at ${subject_market_value:,.2f}, which is ${value_difference:,.2f} ({value_diff_pct:.1f}%) higher than comparable properties.
 
-This discrepancy of {(analysis.current_ratio - analysis.median_comparable_ratio) * 100:.2f} percentage points represents a significant deviation from the norm and results in an unfair tax burden on this property.
+This discrepancy represents a significant deviation from the norm and results in an unfair tax burden on this property.
 
 STATISTICAL ANALYSIS
 
 Our fairness analysis yielded the following results:
 
-Assessment Comparison:
-- Subject Property Ratio: {analysis.current_ratio:.2%}
-- Median Comparable Ratio: {analysis.median_comparable_ratio:.2%}
-- Deviation: {(analysis.current_ratio - analysis.median_comparable_ratio) * 100:.2f} percentage points
+Market Value Comparison:
+- Subject Property Market Value: ${subject_market_value:,.2f}
+- Median Comparable Market Value: ${median_comparable_value:,.2f}
+- Difference: ${value_difference:,.2f} ({value_diff_pct:.1f}% above median)
 
 Analysis Metrics:
-- Fairness Score: {analysis.fairness_score}/100 (higher indicates over-assessment)
+- Fairness Score: {analysis.fairness_score}/100 (lower score indicates over-assessment)
 - Confidence Level: {analysis.confidence}/100
 - Assessment Interpretation: {analysis.interpretation}
 - Comparable Properties Analyzed: {analysis.comparable_count}
 
-The fairness score of {analysis.fairness_score} (where 50 represents fair assessment) indicates that this property is being assessed at a rate substantially higher than comparable properties in the same jurisdiction.
+The fairness score of {analysis.fairness_score} indicates that this property's market value is significantly higher than comparable properties in the same area, suggesting potential over-valuation.
 
 FINANCIAL IMPACT
 
@@ -490,7 +508,7 @@ REQUESTED RELIEF
 
 Based on the evidence presented, I respectfully request that the Board reduce the assessed value from {current_val} to {requested_val}. This adjustment would:
 
-1. Align my property's assessment ratio ({analysis.median_comparable_ratio:.2%}) with comparable properties
+1. Align my property's market value with comparable properties (${median_comparable_value:,.2f})
 2. Ensure fair and equitable taxation as required by Arkansas law
 3. Reduce my annual property tax burden by approximately {savings}
 
@@ -504,8 +522,7 @@ SUPPORTING DOCUMENTATION
 
 I am prepared to provide the following supporting documentation upon request:
 - Detailed comparable property analysis
-- Assessment ratio calculations
-- Market value supporting data
+- Market value comparison data
 - Statistical methodology documentation
 
 CONCLUSION
@@ -532,6 +549,11 @@ Enclosures: Comparable Property Analysis, Evidence Summary"""
         config: GeneratorConfig
     ) -> str:
         """Generate concise style appeal letter."""
+        # Calculate value comparisons
+        subject_market_value = analysis.total_val_cents / 100
+        median_comparable_value = analysis.median_comparable_value_cents / 100 if analysis.median_comparable_value_cents else subject_market_value
+        value_diff_pct = ((subject_market_value - median_comparable_value) / median_comparable_value * 100) if median_comparable_value > 0 else 0
+
         return f"""{today.strftime('%B %d, %Y')}
 
 {config.jurisdiction}
@@ -546,10 +568,10 @@ To Whom It May Concern:
 
 I am formally appealing the assessed value of {current_val} for the above property. Based on comparable sales analysis, the fair assessed value should be {requested_val}.
 
-Analysis of {analysis.comparable_count} comparable properties shows a median assessment ratio of {analysis.median_comparable_ratio:.1%}, while my property is assessed at {analysis.current_ratio:.1%} of market value.
+Analysis of {analysis.comparable_count} comparable properties shows a median market value of ${median_comparable_value:,.2f}, while my property is valued at ${subject_market_value:,.2f} ({value_diff_pct:.1f}% above median).
 
 Key findings:
-- Fairness Score: {analysis.fairness_score}/100
+- Fairness Score: {analysis.fairness_score}/100 (lower = more over-assessed)
 - Confidence: {analysis.confidence}%
 - Interpretation: {analysis.interpretation}
 
@@ -567,7 +589,13 @@ Sincerely,
         config: GeneratorConfig
     ) -> str:
         """Generate executive summary for the appeal."""
-        requested_cents = int(analysis.total_val_cents * analysis.median_comparable_ratio)
+        # Calculate values using sales comparison approach
+        median_market_cents = analysis.median_comparable_value_cents
+        requested_cents = int(median_market_cents * 0.20) if median_market_cents else analysis.assess_val_cents
+        subject_market_value = analysis.total_val_cents / 100
+        median_comparable_value = median_market_cents / 100 if median_market_cents else subject_market_value
+        value_difference = subject_market_value - median_comparable_value
+        value_diff_pct = (value_difference / median_comparable_value * 100) if median_comparable_value > 0 else 0
 
         return f"""EXECUTIVE SUMMARY
 {'=' * 60}
@@ -582,15 +610,15 @@ Recommended Assessment:  ${requested_cents / 100:>15,.2f}
 Potential Annual Savings: ${analysis.estimated_annual_savings_cents / 100:>14,.2f}
 5-Year Savings Potential: ${analysis.estimated_five_year_savings_cents / 100:>14,.2f}
 
-ASSESSMENT COMPARISON
+MARKET VALUE COMPARISON
 {'-' * 40}
-Your Assessment Ratio:        {analysis.current_ratio:>10.2%}
-Comparable Properties Ratio:  {analysis.median_comparable_ratio:>10.2%}
-Difference:                   {(analysis.current_ratio - analysis.median_comparable_ratio) * 100:>10.2f} pts
+Your Property Market Value:     ${subject_market_value:>12,.2f}
+Median Comparable Value:        ${median_comparable_value:>12,.2f}
+Difference:                     ${value_difference:>12,.2f} ({value_diff_pct:+.1f}%)
 
 ANALYSIS STRENGTH
 {'-' * 40}
-Fairness Score:    {analysis.fairness_score:>3}/100
+Fairness Score:    {analysis.fairness_score:>3}/100 (lower = more over-assessed)
 Confidence Level:  {analysis.confidence:>3}/100
 Comparables Used:  {analysis.comparable_count:>3} properties
 Recommendation:    {analysis.recommended_action}
@@ -609,14 +637,17 @@ Statute:      Arkansas Code § 26-27-301"""
         config: GeneratorConfig
     ) -> str:
         """Generate evidence summary with bullet points."""
-        over_assessment_cents = analysis.assess_val_cents - int(
-            analysis.total_val_cents * analysis.median_comparable_ratio
-        )
+        # Calculate over-assessment based on value comparison
+        subject_market_value = analysis.total_val_cents / 100
+        median_market_cents = analysis.median_comparable_value_cents
+        median_comparable_value = median_market_cents / 100 if median_market_cents else subject_market_value
+        value_difference = subject_market_value - median_comparable_value
+        over_assessment_cents = int(value_difference * 0.20 * 100)  # Over-assessment in assessed value terms
 
         bullets = [
-            f"Property assessed at {analysis.current_ratio:.2%} of market value vs. {analysis.median_comparable_ratio:.2%} median for comparable properties",
+            f"Property market value (${subject_market_value:,.2f}) is ${value_difference:,.2f} above median comparable value (${median_comparable_value:,.2f})",
             f"Analysis based on {len(comparables)} comparable properties in Benton County",
-            f"Fairness score of {analysis.fairness_score}/100 indicates {analysis.interpretation.lower().replace('_', '-')}",
+            f"Fairness score of {analysis.fairness_score}/100 indicates {analysis.interpretation.lower().replace('_', '-')} (lower score = more over-assessed)",
             f"Statistical confidence level: {analysis.confidence}%",
             f"Estimated over-assessment: ${over_assessment_cents / 100:,.2f}",
             f"Projected annual tax savings if corrected: ${analysis.estimated_annual_savings_cents / 100:,.2f}",
@@ -624,8 +655,8 @@ Statute:      Arkansas Code § 26-27-301"""
         ]
 
         if comparables:
-            avg_ratio = sum(c.assessment_ratio for c in comparables) / len(comparables)
-            bullets.append(f"Average comparable assessment ratio: {avg_ratio:.2%}")
+            avg_value = sum(c.total_value_cents for c in comparables) / len(comparables) / 100
+            bullets.append(f"Average comparable market value: ${avg_value:,.2f}")
 
         summary = "EVIDENCE SUMMARY\n" + "=" * 60 + "\n\n"
         summary += "\n".join(f"  • {b}" for b in bullets)

@@ -53,13 +53,13 @@ class AssessmentAnalysis:
     current_ratio: float
 
     # Analysis results
-    fairness_score: int          # 0-100 (higher = more over-assessed)
+    fairness_score: int          # 0-100 (higher = FAIRER, less over-assessed)
     confidence: int              # 0-100 (confidence in analysis)
     interpretation: str          # "FAIR", "OVER_ASSESSED", "UNDER_ASSESSED"
 
     # Comparables summary
     comparable_count: int
-    median_comparable_ratio: float
+    median_comparable_value_cents: int  # Median market value of comparables
 
     # Savings estimate
     estimated_annual_savings_cents: int
@@ -76,24 +76,28 @@ class AssessmentAnalysis:
 
 ## Recommendation Logic
 
-The system uses a multi-factor algorithm to determine recommendations:
+The system uses a multi-factor algorithm to determine recommendations.
+
+**NEW SCORING: Higher score = FAIRER (less likely over-assessed)**
 
 ### STRONG APPEAL
-- Fairness Score >= 70
-- Confidence >= 60
-- Annual Savings >= $500
+- Fairness Score <= 40 (significantly above comparable median)
+- Over-assessment >= $10,000
+- Annual Savings >= $100
 
 ### MODERATE APPEAL
-- Fairness Score >= 60
-- Annual Savings >= $250
+- Fairness Score <= 60
+- Over-assessment >= $5,000
+- Annual Savings >= $50
 
 ### MONITOR (Weak case)
-- Fairness Score >= 50
+- Fairness Score <= 75
+- Some over-assessment detected
 - May become appeal-worthy in future
 
 ### NO ACTION
-- Fairness Score < 50
-- Property is fairly assessed
+- Fairness Score > 75
+- Property is at or below comparable median
 
 ## Usage Examples
 

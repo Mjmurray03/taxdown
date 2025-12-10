@@ -74,8 +74,10 @@ class TestCompleteWorkflow:
 
     def test_06_generate_appeal_if_qualified(self, client):
         """Generate appeal if property qualifies."""
-        if self.analysis_result["fairness_score"] < 50:
-            pytest.skip("Property doesn't qualify for appeal")
+        # NEW SCORING: lower score = more over-assessed, qualifies for appeal
+        # Score > 60 means fairly assessed, doesn't qualify
+        if self.analysis_result["fairness_score"] > 60:
+            pytest.skip("Property doesn't qualify for appeal (score > 60 means fairly assessed)")
 
         property_id = self.test_property["id"]
         response = client.post(

@@ -142,7 +142,7 @@ async def generate_appeal(
         if not package:
             raise HTTPException(
                 status_code=422,
-                detail="Property does not qualify for appeal (score < 50 or insufficient comparables)"
+                detail="Property does not qualify for appeal (score > 60 means fairly assessed, or insufficient comparables)"
             )
 
         response = _package_to_response(package)
@@ -259,7 +259,7 @@ async def batch_generate_appeals(
 
     **Limits:**
     - Maximum 20 properties per request
-    - Properties that don't qualify (score < 50) are skipped
+    - Properties that don't qualify (score > 60, i.e. fairly assessed) are skipped
 
     **Request Body:**
     - `property_ids`: List of property UUIDs or Parcel IDs (max 20)

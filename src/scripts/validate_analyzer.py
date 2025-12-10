@@ -268,8 +268,9 @@ class AnalyzerValidator:
         """
         logger.info("Validating savings estimates...")
 
-        # Filter for appeal candidates only (score > 60)
-        appeal_candidates = [a for a in self.analyses if a.fairness_score > 60]
+        # Filter for appeal candidates only (score <= 60 means over-assessed)
+        # NEW SCORING: higher score = FAIRER, so appeal candidates have LOWER scores
+        appeal_candidates = [a for a in self.analyses if a.fairness_score <= 60]
 
         if not appeal_candidates:
             return {'error': 'No appeal candidates found'}
@@ -571,7 +572,7 @@ Arkansas statutory rate is approximately 20% for residential properties.
 
 ## 3. Savings Estimate Validation
 
-Analysis of estimated annual tax savings for appeal candidates (fairness score > 60).
+Analysis of estimated annual tax savings for appeal candidates (fairness score <= 60, lower = more over-assessed).
 
 """
         if 'error' not in savings:
@@ -734,10 +735,10 @@ Properties with extreme fairness scores indicating severe under or over-assessme
 
 """
         if self.edge_cases['extreme_scores']:
-            report += "| Parcel ID | Address | Score | Ratio | Median Comp Ratio | Comparables |\n"
-            report += "|-----------|---------|-------|-------|-------------------|-------------|\n"
+            report += "| Parcel ID | Address | Score | Market Value | Median Comp Value | Comparables |\n"
+            report += "|-----------|---------|-------|--------------|-------------------|-------------|\n"
             for analysis in self.edge_cases['extreme_scores'][:20]:
-                report += f"| {analysis.parcel_id} | {analysis.address[:30]} | {analysis.fairness_score} | {analysis.current_ratio:.2%} | {analysis.median_comparable_ratio:.2%} | {analysis.comparable_count} |\n"
+                report += f"| {analysis.parcel_id} | {analysis.address[:30]} | {analysis.fairness_score} | ${analysis.total_val_cents/100:,.0f} | ${analysis.median_comparable_value_cents/100:,.0f} | {analysis.comparable_count} |\n"
 
             if len(self.edge_cases['extreme_scores']) > 20:
                 report += f"\n*... and {len(self.edge_cases['extreme_scores']) - 20} more*\n"

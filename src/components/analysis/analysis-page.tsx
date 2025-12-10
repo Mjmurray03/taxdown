@@ -295,23 +295,20 @@ function RecommendationBadge({ action }: { action: string }) {
 }
 
 function ScoreInterpretation({ score }: { score: number }) {
+  // NEW SCORING: Higher score = FAIRER (inverted from original)
+  // >= 70: Fairly Assessed
+  // 50-69: Slightly Over-Assessed
+  // 30-49: Moderately Over-Assessed
+  // < 30: Significantly Over-Assessed
   if (score >= 70) {
     return (
-      <p className="text-red-700">
-        <strong>Significantly Over-Assessed:</strong> Your property appears to be assessed
-        considerably higher than comparable properties. Filing an appeal is strongly recommended.
+      <p className="text-green-700">
+        <strong>Fairly Assessed:</strong> Your property assessment is in line with or
+        below comparable properties. No action needed.
       </p>
     );
   }
   if (score >= 50) {
-    return (
-      <p className="text-orange-700">
-        <strong>Moderately Over-Assessed:</strong> Your property assessment is higher than
-        average for similar properties. An appeal may result in meaningful savings.
-      </p>
-    );
-  }
-  if (score >= 30) {
     return (
       <p className="text-yellow-700">
         <strong>Slightly Over-Assessed:</strong> Your assessment is somewhat higher than
@@ -319,10 +316,18 @@ function ScoreInterpretation({ score }: { score: number }) {
       </p>
     );
   }
+  if (score >= 30) {
+    return (
+      <p className="text-orange-700">
+        <strong>Moderately Over-Assessed:</strong> Your property assessment is higher than
+        average for similar properties. An appeal may result in meaningful savings.
+      </p>
+    );
+  }
   return (
-    <p className="text-green-700">
-      <strong>Fairly Assessed:</strong> Your property assessment is in line with or
-      below comparable properties. No action needed.
+    <p className="text-red-700">
+      <strong>Significantly Over-Assessed:</strong> Your property appears to be assessed
+      considerably higher than comparable properties. Filing an appeal is strongly recommended.
     </p>
   );
 }

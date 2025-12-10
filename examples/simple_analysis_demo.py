@@ -51,8 +51,8 @@ def main():
         if analysis.recommended_action == "APPEAL":
             print("\nRECOMMENDATION: File an appeal!")
             print(f"Strength: {analysis.appeal_strength}")
-            print(f"Your property is assessed at {analysis.current_ratio:.2%} of its value,")
-            print(f"while similar properties are assessed at {analysis.median_comparable_ratio:.2%}.")
+            print(f"Your property is valued at ${analysis.total_val_cents / 100:,.2f},")
+            print(f"while similar properties have a median value of ${analysis.median_comparable_value_cents / 100:,.2f}.")
             print(f"\nA successful appeal could save you ${analysis.estimated_annual_savings_dollars:,.2f} per year.")
             print(f"That's ${analysis.estimated_five_year_savings_dollars:,.2f} over 5 years!")
 
