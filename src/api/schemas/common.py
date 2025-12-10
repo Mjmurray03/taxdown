@@ -109,16 +109,16 @@ def create_paginated_response(
     }
 
 
-def cents_to_dollars(cents: Optional[int]) -> Optional[float]:
+def cents_to_dollars(cents) -> Optional[float]:
     """
     Convert cents to dollars.
 
     Args:
-        cents: Amount in cents
+        cents: Amount in cents (can be int, float, or Decimal)
 
     Returns:
         Amount in dollars, or None if input is None
     """
     if cents is None:
         return None
-    return cents / 100.0
+    return float(cents) / 100.0

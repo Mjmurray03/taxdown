@@ -86,8 +86,10 @@ function PropertyDetailPageContent() {
       toast.success('Appeal generated successfully');
       setActiveTab('appeal');
     },
-    onError: (error) => {
-      toast.error('Appeal generation failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    onError: (error: any) => {
+      // Extract error message from Axios error response
+      const message = error?.response?.data?.detail || error?.message || 'Unknown error';
+      toast.error(message);
     },
   });
 
