@@ -139,11 +139,19 @@ class AppealGenerator:
 
         try:
             # Step 1: Analyze the property
+            logger.debug(f"Step 1: Analyzing property {property_id}")
             analysis = self.analyzer.analyze_property(property_id)
 
             if not analysis:
                 logger.warning(f"Property {property_id} could not be analyzed (insufficient data)")
                 return None
+
+            logger.debug(
+                f"Analysis result: fairness_score={analysis.fairness_score}, "
+                f"total_val_cents={analysis.total_val_cents}, "
+                f"median_comparable_value_cents={analysis.median_comparable_value_cents}, "
+                f"comparable_count={analysis.comparable_count}"
+            )
 
             # Step 2: Validate property qualifies for appeal
             # NEW SCORING: higher score = FAIRER, so appeal candidates have LOWER scores
@@ -155,23 +163,53 @@ class AppealGenerator:
                 )
                 return None
 
+            logger.debug(f"Step 2: Property qualifies with score {analysis.fairness_score}")
+
             # Step 3: Get property details
+            logger.debug(f"Step 3: Getting property details for {property_id}")
             property_data = self._get_property_details(property_id)
+            logger.debug(f"Property data: {property_data}")
 
             # Step 4: Get comparable properties for evidence
+            logger.debug(f"Step 4: Getting comparable summaries for {property_id}")
             comparables = self._get_comparable_summaries(property_id, limit=10)
+            logger.debug(f"Found {len(comparables)} comparable summaries")
 
             # Step 5: Calculate target values
             # median_comparable_value_cents is the median MARKET value of comparables
             # Fair assessed value = median market value * 0.20 (Arkansas assessment ratio)
+            logger.debug(f"Step 5: Calculating target values")
             median_market_value_cents = analysis.median_comparable_value_cents
+            logger.debug(f"median_market_value_cents = {median_market_value_cents}")
+
+            # Safety check for None or 0 median value
+            if not median_market_value_cents or median_market_value_cents <= 0:
+                logger.warning(
+                    f"Invalid median_market_value_cents ({median_market_value_cents}) for {property_id}, "
+                    f"using assess_val_cents ({analysis.assess_val_cents}) as fallback"
+                )
+                median_market_value_cents = analysis.total_val_cents  # Use subject's value as fallback
+
             requested_assessed_cents = int(median_market_value_cents * 0.20) if median_market_value_cents else analysis.assess_val_cents
             reduction_cents = max(0, analysis.assess_val_cents - requested_assessed_cents)
+            logger.debug(f"requested_assessed_cents = {requested_assessed_cents}, reduction_cents = {reduction_cents}")
 
             # Step 6: Generate appeal content
-            appeal_letter = self._generate_letter(analysis, property_data, cfg)
+            logger.debug(f"Step 6: Generating appeal letter with style={cfg.template_style}")
+            try:
+                appeal_letter = self._generate_letter(analysis, property_data, cfg)
+                logger.debug(f"Appeal letter generated: {len(appeal_letter)} chars")
+            except Exception as letter_err:
+                logger.error(f"Failed to generate appeal letter: {letter_err}")
+                raise AppealGenerationError(f"Letter generation failed: {str(letter_err)}") from letter_err
+
+            logger.debug("Generating executive summary")
             executive_summary = self._generate_executive_summary(analysis, cfg)
+
+            logger.debug("Generating evidence summary")
             evidence_summary = self._generate_evidence_summary(analysis, comparables, cfg)
+
+            logger.debug("Generating comparables table")
             comparables_table = self._generate_comparables_table(comparables) if cfg.include_comparables else None
 
             # Step 7: Build the package
@@ -335,14 +373,16 @@ class AppealGenerator:
 
             summaries = []
             for comp in comparables:
+                # ComparableProperty doesn't have sq_ft or yr_built - use None
+                # The ComparablePropertySummary accepts these as Optional
                 summaries.append(ComparablePropertySummary(
                     parcel_id=comp.parcel_id,
                     address=comp.address or "Address unavailable",
                     total_value_cents=comp.total_val_cents,
                     assessed_value_cents=comp.assess_val_cents,
                     assessment_ratio=comp.assessment_ratio / 100.0,  # Convert from % to decimal
-                    square_footage=comp.sq_ft,
-                    year_built=comp.yr_built,
+                    square_footage=None,  # Not available in ComparableProperty
+                    year_built=None,  # Not available in ComparableProperty
                     distance_miles=comp.distance_miles,
                     similarity_score=comp.similarity_score,
                 ))
@@ -350,7 +390,9 @@ class AppealGenerator:
             return summaries
 
         except Exception as e:
-            logger.warning(f"Could not get comparables for {property_id}: {e}")
+            logger.error(f"Could not get comparables for {property_id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return []
 
     def _generate_letter(
@@ -363,14 +405,22 @@ class AppealGenerator:
         style = TemplateStyle(config.template_style)
         today = date.today()
 
-        # Format values
-        current_val = f"${analysis.assess_val_cents / 100:,.2f}"
+        # Format values with safety checks
+        assess_val = analysis.assess_val_cents if analysis.assess_val_cents else 0
+        current_val = f"${assess_val / 100:,.2f}"
+
         # Calculate fair assessed value: median comparable market value * 0.20
         median_market_cents = analysis.median_comparable_value_cents
-        requested_cents = int(median_market_cents * 0.20) if median_market_cents else analysis.assess_val_cents
+        # Safety check: if median is 0 or None, use subject's total value
+        if not median_market_cents or median_market_cents <= 0:
+            median_market_cents = analysis.total_val_cents if analysis.total_val_cents else assess_val * 5
+
+        requested_cents = int(median_market_cents * 0.20) if median_market_cents else assess_val
         requested_val = f"${requested_cents / 100:,.2f}"
-        savings = f"${analysis.estimated_annual_savings_cents / 100:,.2f}"
-        owner_name = property_data.get('owner_name', '[Property Owner]')
+
+        savings_cents = analysis.estimated_annual_savings_cents if analysis.estimated_annual_savings_cents else 0
+        savings = f"${savings_cents / 100:,.2f}"
+        owner_name = property_data.get('owner_name') or '[Property Owner]'
 
         if style == TemplateStyle.CONCISE:
             return self._generate_concise_letter(
@@ -397,8 +447,10 @@ class AppealGenerator:
     ) -> str:
         """Generate formal style appeal letter."""
         # Calculate value difference for the letter
-        subject_market_value = analysis.total_val_cents / 100
-        median_comparable_value = analysis.median_comparable_value_cents / 100 if analysis.median_comparable_value_cents else subject_market_value
+        subject_market_value = analysis.total_val_cents / 100 if analysis.total_val_cents else 0
+        median_comparable_value = analysis.median_comparable_value_cents / 100 if analysis.median_comparable_value_cents and analysis.median_comparable_value_cents > 0 else subject_market_value
+        if median_comparable_value == 0:
+            median_comparable_value = subject_market_value if subject_market_value > 0 else 1  # Avoid division by zero
         value_difference = subject_market_value - median_comparable_value
         value_diff_pct = (value_difference / median_comparable_value * 100) if median_comparable_value > 0 else 0
 
@@ -449,11 +501,13 @@ Respectfully,
         config: GeneratorConfig
     ) -> str:
         """Generate detailed style appeal letter."""
-        five_year_savings = f"${analysis.estimated_five_year_savings_cents / 100:,.2f}"
+        five_year_savings = f"${(analysis.estimated_five_year_savings_cents or 0) / 100:,.2f}"
 
-        # Calculate value comparisons
-        subject_market_value = analysis.total_val_cents / 100
-        median_comparable_value = analysis.median_comparable_value_cents / 100 if analysis.median_comparable_value_cents else subject_market_value
+        # Calculate value comparisons with safety checks
+        subject_market_value = analysis.total_val_cents / 100 if analysis.total_val_cents else 0
+        median_comparable_value = analysis.median_comparable_value_cents / 100 if analysis.median_comparable_value_cents and analysis.median_comparable_value_cents > 0 else subject_market_value
+        if median_comparable_value == 0:
+            median_comparable_value = subject_market_value if subject_market_value > 0 else 1
         value_difference = subject_market_value - median_comparable_value
         value_diff_pct = (value_difference / median_comparable_value * 100) if median_comparable_value > 0 else 0
 
@@ -549,9 +603,11 @@ Enclosures: Comparable Property Analysis, Evidence Summary"""
         config: GeneratorConfig
     ) -> str:
         """Generate concise style appeal letter."""
-        # Calculate value comparisons
-        subject_market_value = analysis.total_val_cents / 100
-        median_comparable_value = analysis.median_comparable_value_cents / 100 if analysis.median_comparable_value_cents else subject_market_value
+        # Calculate value comparisons with safety checks
+        subject_market_value = analysis.total_val_cents / 100 if analysis.total_val_cents else 0
+        median_comparable_value = analysis.median_comparable_value_cents / 100 if analysis.median_comparable_value_cents and analysis.median_comparable_value_cents > 0 else subject_market_value
+        if median_comparable_value == 0:
+            median_comparable_value = subject_market_value if subject_market_value > 0 else 1
         value_diff_pct = ((subject_market_value - median_comparable_value) / median_comparable_value * 100) if median_comparable_value > 0 else 0
 
         return f"""{today.strftime('%B %d, %Y')}
