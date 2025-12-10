@@ -346,7 +346,13 @@ function PropertyDetailPageContent() {
                     </div>
 
                     {/* Lower fairness_score = more over-assessed = better appeal candidate */}
-                    {(analysisData?.fairness_score ?? property.fairness_score ?? 100) <= 60 && (
+                    {/* Only show if there's an actual analysis AND score qualifies */}
+                    {(() => {
+                      const score = analysisData?.fairness_score ?? property.fairness_score;
+                      const hasAnalysis = score !== null && score !== undefined;
+                      const qualifiesForAppeal = hasAnalysis && score <= 60;
+                      return qualifiesForAppeal;
+                    })() && (
                       <div className="p-6 bg-[#DCFCE7] border border-[#166534]/20 rounded-lg">
                         <div className="flex items-center gap-3 mb-2">
                           <TrendingUp className="h-5 w-5 text-[#166534]" />
