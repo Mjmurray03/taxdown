@@ -336,6 +336,8 @@ class AppealGenerator:
 
     def _get_property_details(self, property_id: str) -> Dict[str, Any]:
         """Get extended property details from database."""
+        # Note: sq_ft and yr_built columns don't exist in the properties table yet
+        # When those columns are added, they can be included in this query
         query = text("""
             SELECT
                 id,
@@ -345,8 +347,6 @@ class AppealGenerator:
                 ow_add AS owner_address,
                 total_val_cents,
                 assess_val_cents,
-                sq_ft,
-                yr_built,
                 prop_class
             FROM properties
             WHERE parcel_id = :property_id OR id::text = :property_id
