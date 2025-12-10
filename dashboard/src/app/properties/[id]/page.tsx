@@ -210,8 +210,9 @@ function PropertyDetailPageContent() {
               {property.fairness_score ? (
                 <>
                   <p className="text-display tabular-nums text-[#09090B]" style={{ fontSize: '2.25rem' }}>
-                    {property.fairness_score}
+                    {property.fairness_score}/100
                   </p>
+                  <p className="text-xs text-[#A1A1AA]">higher = fairer</p>
                   {property.recommended_action === 'APPEAL' && (
                     <Badge variant="success" className="text-xs">Appeal Recommended</Badge>
                   )}
@@ -323,9 +324,10 @@ function PropertyDetailPageContent() {
                     <div className="grid md:grid-cols-3 gap-4">
                       <div className="text-center p-6 bg-[#FAFAF9] rounded-lg">
                         <div className="text-4xl font-semibold text-[#09090B] tabular-nums">
-                          {analysisData?.fairness_score ?? property.fairness_score}%
+                          {analysisData?.fairness_score ?? property.fairness_score}/100
                         </div>
                         <div className="text-xs text-[#71717A] mt-2 uppercase tracking-wider">Fairness Score</div>
+                        <div className="text-xs text-[#A1A1AA] mt-1">(higher = fairer)</div>
                       </div>
                       <div className="text-center p-6 bg-[#FAFAF9] rounded-lg">
                         <div className="text-4xl font-semibold text-[#166534] tabular-nums">
