@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -68,6 +68,15 @@ export default function AppealsPage() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [appealToDelete, setAppealToDelete] = useState<string | null>(null);
+
+  // Hydration-safe date values - only set after mount
+  const [daysUntilDeadline, setDaysUntilDeadline] = useState<number | null>(null);
+  const [formattedDeadline, setFormattedDeadline] = useState<string>('');
+
+  useEffect(() => {
+    setDaysUntilDeadline(getDaysUntilDeadline());
+    setFormattedDeadline(getFormattedDeadline());
+  }, []);
 
   // Fetch appeals
   const { data, isLoading, error, refetch, isFetching } = useQuery<APIResponse<AppealListItem[]>>({
@@ -173,9 +182,6 @@ export default function AppealsPage() {
     }
   };
 
-  // Calculate days until deadline from config
-  const daysUntilDeadline = getDaysUntilDeadline();
-
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -186,18 +192,22 @@ export default function AppealsPage() {
             <p className="text-muted-foreground">Manage property tax appeals</p>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              Filing Deadline: {getFormattedDeadline()}
-            </Badge>
-            <Badge variant={daysUntilDeadline < 30 ? 'error' : 'secondary'}>
-              {daysUntilDeadline} days left
-            </Badge>
+            {formattedDeadline && (
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                Filing Deadline: {formattedDeadline}
+              </Badge>
+            )}
+            {daysUntilDeadline !== null && (
+              <Badge variant={daysUntilDeadline < 30 ? 'error' : 'secondary'}>
+                {daysUntilDeadline} days left
+              </Badge>
+            )}
           </div>
         </div>
 
         {/* Deadline Alert */}
-        {daysUntilDeadline < 60 && (
+        {daysUntilDeadline !== null && daysUntilDeadline < 60 && (
           <Card className="border-yellow-200 bg-yellow-50">
             <CardContent className="flex items-center justify-between py-4">
               <div className="flex items-center gap-3">
@@ -205,7 +215,7 @@ export default function AppealsPage() {
                 <div>
                   <p className="font-medium text-yellow-800">Filing Deadline Approaching</p>
                   <p className="text-sm text-yellow-700">
-                    Submit your appeals before {getFormattedDeadline()} to be considered for this tax year.
+                    Submit your appeals before {formattedDeadline} to be considered for this tax year.
                   </p>
                 </div>
               </div>

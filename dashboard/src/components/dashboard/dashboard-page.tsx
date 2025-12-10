@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -15,6 +16,17 @@ import { APPEAL_DEADLINE, getDaysUntilDeadline, getFormattedDeadline } from '@/l
 export function DashboardPage() {
   // Get selected portfolio from local storage
   const [selectedPortfolioId] = useLocalStorage<string | null>('selected-portfolio-id', null);
+
+  // Hydration-safe date values - only set after mount
+  const [daysUntilDeadline, setDaysUntilDeadline] = useState<number | null>(null);
+  const [formattedDeadline, setFormattedDeadline] = useState<string>('');
+  const [todayFormatted, setTodayFormatted] = useState<string>('');
+
+  useEffect(() => {
+    setDaysUntilDeadline(getDaysUntilDeadline());
+    setFormattedDeadline(getFormattedDeadline());
+    setTodayFormatted(format(new Date(), 'MMMM d, yyyy'));
+  }, []);
 
   // Fetch dashboard data from portfolio if available
   const { data: dashboardResponse, isLoading: loadingDashboard } = useQuery<APIResponse<DashboardData>>({
@@ -60,10 +72,6 @@ export function DashboardPage() {
     return new Intl.NumberFormat('en-US').format(value);
   };
 
-  // Calculate days until deadline from config
-  const daysUntilDeadline = getDaysUntilDeadline();
-  const today = new Date();
-
   return (
     <div className="space-y-8">
       {/* Page Header */}
@@ -71,7 +79,7 @@ export function DashboardPage() {
         <div>
           <h1 className="text-4xl font-semibold tracking-tight text-[#09090B]">Dashboard</h1>
           <p className="mt-1 text-sm text-[#71717A]">
-            {format(today, 'MMMM d, yyyy')}
+            {todayFormatted || '\u00A0'}
           </p>
         </div>
         <Button size="default">
@@ -330,7 +338,7 @@ export function DashboardPage() {
       </div>
 
       {/* Deadline Banner */}
-      {daysUntilDeadline > 0 && (
+      {daysUntilDeadline !== null && daysUntilDeadline > 0 && (
         <Card className={`border-[#E4E4E7] ${
           daysUntilDeadline < 14
             ? 'bg-[#FEF2F2]'
@@ -342,9 +350,9 @@ export function DashboardPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className={`h-2 w-2 rounded-full ${
-                  daysUntilDeadline < 14
+                  (daysUntilDeadline ?? 999) < 14
                     ? 'bg-[#991B1B]'
-                    : daysUntilDeadline < 30
+                    : (daysUntilDeadline ?? 999) < 30
                     ? 'bg-[#A16207]'
                     : 'bg-[#166534]'
                 }`} />
@@ -352,18 +360,18 @@ export function DashboardPage() {
                   Appeal deadline: <span className="font-medium">
                     {dashboardData?.appeal_deadline
                       ? format(new Date(dashboardData.appeal_deadline), 'MMMM d, yyyy')
-                      : getFormattedDeadline()}
+                      : formattedDeadline || 'Loading...'}
                   </span>
                 </p>
               </div>
               <p className={`text-sm font-semibold tabular-nums ${
-                daysUntilDeadline < 14
+                (daysUntilDeadline ?? 999) < 14
                   ? 'text-[#991B1B]'
-                  : daysUntilDeadline < 30
+                  : (daysUntilDeadline ?? 999) < 30
                   ? 'text-[#A16207]'
                   : 'text-[#09090B]'
               }`}>
-                {dashboardData?.days_until_deadline || daysUntilDeadline} days remaining
+                {dashboardData?.days_until_deadline ?? daysUntilDeadline ?? '...'} days remaining
               </p>
             </div>
           </CardContent>
