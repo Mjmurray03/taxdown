@@ -301,7 +301,17 @@ class PortfolioService:
     def get_portfolio(self, portfolio_id: str) -> Optional[Portfolio]:
         """Get portfolio by ID with summary statistics."""
         with self.engine.connect() as conn:
-            query = text("""
+            # First check if is_active column exists (for backwards compatibility)
+            check_column = text("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'portfolios' AND column_name = 'is_active'
+            """)
+            has_is_active = conn.execute(check_column).first() is not None
+
+            # Build query with or without is_active filter
+            is_active_filter = "AND p.is_active = true" if has_is_active else ""
+
+            query = text(f"""
                 SELECT
                     p.id, p.user_id, p.name, p.description,
                     p.default_mill_rate, p.auto_analyze,
@@ -319,7 +329,7 @@ class PortfolioService:
                     WHERE property_id = prop.id
                     ORDER BY analysis_date DESC LIMIT 1
                 ) aa ON true
-                WHERE p.id::text = :portfolio_id AND p.is_active = true
+                WHERE p.id::text = :portfolio_id {is_active_filter}
                 GROUP BY p.id
             """)
 
@@ -352,7 +362,17 @@ class PortfolioService:
     def get_user_portfolios(self, user_id: str) -> List[Portfolio]:
         """Get all portfolios for a user."""
         with self.engine.connect() as conn:
-            query = text("""
+            # First check if is_active column exists (for backwards compatibility)
+            check_column = text("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'portfolios' AND column_name = 'is_active'
+            """)
+            has_is_active = conn.execute(check_column).first() is not None
+
+            # Build query with or without is_active filter
+            is_active_filter = "AND p.is_active = true" if has_is_active else ""
+
+            query = text(f"""
                 SELECT
                     p.id, p.user_id, p.name, p.description,
                     p.default_mill_rate, p.auto_analyze,
@@ -370,7 +390,7 @@ class PortfolioService:
                     WHERE property_id = prop.id
                     ORDER BY analysis_date DESC LIMIT 1
                 ) aa ON true
-                WHERE p.user_id::text = :user_id AND p.is_active = true
+                WHERE p.user_id::text = :user_id {is_active_filter}
                 GROUP BY p.id
                 ORDER BY p.created_at DESC
             """)
@@ -424,10 +444,18 @@ class PortfolioService:
             if not updates:
                 raise ValueError("No fields to update")
 
+            # Check if is_active column exists
+            check_column = text("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'portfolios' AND column_name = 'is_active'
+            """)
+            has_is_active = conn.execute(check_column).first() is not None
+            is_active_filter = "AND is_active = true" if has_is_active else ""
+
             query = text(f"""
                 UPDATE portfolios
                 SET {", ".join(updates)}
-                WHERE id::text = :portfolio_id AND is_active = true
+                WHERE id::text = :portfolio_id {is_active_filter}
                 RETURNING id
             """)
 
@@ -440,14 +468,31 @@ class PortfolioService:
         return self.get_portfolio(portfolio_id)
 
     def delete_portfolio(self, portfolio_id: str) -> bool:
-        """Soft delete a portfolio."""
+        """Soft delete a portfolio (or hard delete if is_active not available)."""
         with self.engine.connect() as conn:
-            query = text("""
-                UPDATE portfolios
-                SET is_active = false
-                WHERE id::text = :portfolio_id AND is_active = true
-                RETURNING id
+            # Check if is_active column exists
+            check_column = text("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'portfolios' AND column_name = 'is_active'
             """)
+            has_is_active = conn.execute(check_column).first() is not None
+
+            if has_is_active:
+                # Soft delete
+                query = text("""
+                    UPDATE portfolios
+                    SET is_active = false
+                    WHERE id::text = :portfolio_id AND is_active = true
+                    RETURNING id
+                """)
+            else:
+                # Hard delete if no is_active column
+                query = text("""
+                    DELETE FROM portfolios
+                    WHERE id::text = :portfolio_id
+                    RETURNING id
+                """)
+
             result = conn.execute(query, {"portfolio_id": portfolio_id})
             deleted = result.first() is not None
             conn.commit()
@@ -469,8 +514,16 @@ class PortfolioService:
     ) -> PortfolioProperty:
         """Add a property to a portfolio by property ID."""
         with self.engine.connect() as conn:
+            # Check if is_active column exists
+            check_column = text("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'portfolios' AND column_name = 'is_active'
+            """)
+            has_is_active = conn.execute(check_column).first() is not None
+            is_active_filter = "AND is_active = true" if has_is_active else ""
+
             # Verify portfolio exists
-            port_check = text("SELECT id FROM portfolios WHERE id::text = :portfolio_id AND is_active = true")
+            port_check = text(f"SELECT id FROM portfolios WHERE id::text = :portfolio_id {is_active_filter}")
             if not conn.execute(port_check, {"portfolio_id": portfolio_id}).first():
                 raise ValueError("Portfolio not found")
 

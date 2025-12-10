@@ -69,20 +69,25 @@ export function useDownload() {
 
 /**
  * Local storage hook with SSR support
+ * Properly defers localStorage read to useEffect to prevent hydration mismatch
  */
 export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T) => void] {
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    if (typeof window === 'undefined') {
-      return initialValue;
-    }
+  // Always start with initialValue on both server and client initial render
+  const [storedValue, setStoredValue] = useState<T>(initialValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Read from localStorage after hydration
+  useEffect(() => {
     try {
       const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
+      if (item) {
+        setStoredValue(JSON.parse(item));
+      }
     } catch (error) {
-      console.error(error);
-      return initialValue;
+      console.error('Error reading from localStorage:', error);
     }
-  });
+    setIsHydrated(true);
+  }, [key]);
 
   const setValue = useCallback((value: T) => {
     try {
@@ -91,7 +96,7 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T)
         window.localStorage.setItem(key, JSON.stringify(value));
       }
     } catch (error) {
-      console.error(error);
+      console.error('Error writing to localStorage:', error);
     }
   }, [key]);
 

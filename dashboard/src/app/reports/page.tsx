@@ -397,12 +397,12 @@ export default function ReportsPage() {
             {/* Portfolio Selection */}
             <div className="space-y-2">
               <Label>Portfolio (Optional)</Label>
-              <Select value={selectedPortfolioId} onValueChange={setSelectedPortfolioId}>
+              <Select value={selectedPortfolioId || "all"} onValueChange={(val) => setSelectedPortfolioId(val === "all" ? "" : val)}>
                 <SelectTrigger>
                   <SelectValue placeholder="All portfolios" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Portfolios</SelectItem>
+                  <SelectItem value="all">All Portfolios</SelectItem>
                   {portfolios.map((portfolio) => (
                     <SelectItem key={portfolio.id} value={portfolio.id}>
                       {portfolio.name}
