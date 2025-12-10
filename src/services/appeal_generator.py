@@ -373,16 +373,18 @@ class AppealGenerator:
 
             summaries = []
             for comp in comparables:
-                # ComparableProperty doesn't have sq_ft or yr_built - use None
-                # The ComparablePropertySummary accepts these as Optional
                 summaries.append(ComparablePropertySummary(
                     parcel_id=comp.parcel_id,
                     address=comp.address or "Address unavailable",
                     total_value_cents=comp.total_val_cents,
                     assessed_value_cents=comp.assess_val_cents,
                     assessment_ratio=comp.assessment_ratio / 100.0,  # Convert from % to decimal
-                    square_footage=None,  # Not available in ComparableProperty
-                    year_built=None,  # Not available in ComparableProperty
+                    # TODO: Future enhancement - add sq_ft and yr_built fields to ComparableProperty
+                    # dataclass in comparable_service.py, then update these to use comp.sq_ft
+                    # and comp.yr_built. For now, these are set to None since the fields
+                    # don't exist on ComparableProperty yet.
+                    square_footage=None,
+                    year_built=None,
                     distance_miles=comp.distance_miles,
                     similarity_score=comp.similarity_score,
                 ))
